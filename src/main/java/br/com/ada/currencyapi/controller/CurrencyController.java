@@ -1,16 +1,5 @@
 package br.com.ada.currencyapi.controller;
 
-import java.util.List;
-
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
 
 import br.com.ada.currencyapi.domain.ConvertCurrencyRequest;
 import br.com.ada.currencyapi.domain.ConvertCurrencyResponse;
@@ -21,41 +10,58 @@ import br.com.ada.currencyapi.exception.CurrencyException;
 import br.com.ada.currencyapi.service.CurrencyService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 @Slf4j
 @RestController
-@RequiredArgsConstructor
 @RequestMapping("/currency")
+@RequiredArgsConstructor
 public class CurrencyController {
 
     private final CurrencyService currencyService;
 
     @GetMapping
     public ResponseEntity<List<CurrencyResponse>> get() {
-        log.info("Fetching all currencies");
-        List<CurrencyResponse> response = currencyService.get();
-        log.info("Fetched {} currencies", response.size());
-        return new ResponseEntity<>(response, HttpStatus.OK);
+        List<CurrencyResponse> currencies = currencyService.get();
+        return ResponseEntity.ok(currencies);
     }
 
-    @PostMapping("/convert")
+    @GetMapping("/convert")
     public ResponseEntity<ConvertCurrencyResponse> convert(@RequestBody ConvertCurrencyRequest request) throws CoinNotFoundException {
-        log.info("Converting currency from {} to {}", request.getFrom(), request.getTo());
         ConvertCurrencyResponse response = currencyService.convert(request);
-        log.info("Converted amount: {}", response.getAmount());
-        return new ResponseEntity<>(response, HttpStatus.OK);
+        return ResponseEntity.ok(response);
     }
 
     @PostMapping
     public ResponseEntity<Long> create(@RequestBody CurrencyRequest request) throws CurrencyException {
-        return new ResponseEntity<>(currencyService.create(request), HttpStatus.CREATED);
+        Long id = currencyService.create(request);
+        return ResponseEntity.status(HttpStatus.CREATED).body(id);
+    }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<Void> update(@PathVariable("id") Long id, @RequestBody CurrencyRequest request) throws CurrencyException, CoinNotFoundException {
+        currencyService.update(id, request);
+        return ResponseEntity.ok().build();
     }
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable("id") Long id) {
-        log.info("Deleting currency with ID {}", id);
         currencyService.delete(id);
-        log.info("Deleted currency with ID {}", id);
         return ResponseEntity.ok().build();
+    }
+
+    @GetMapping("/json/last/{currencies}")
+    public ResponseEntity<List<CurrencyResponse>> getLastCurrencies(@PathVariable String currencies) {
+        try {
+            List<CurrencyResponse> apiResponses = currencyService.convertCurrencyAPI(currencies);
+            return ResponseEntity.ok(apiResponses);
+        } catch (Exception e) {
+            log.error("Error fetching currency rates: ", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
     }
 }

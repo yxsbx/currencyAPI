@@ -1,126 +1,203 @@
 package br.com.ada.currencyapi.controller;
 
-import br.com.ada.currencyapi.domain.ConvertCurrencyRequest;
-import br.com.ada.currencyapi.domain.ConvertCurrencyResponse;
-import br.com.ada.currencyapi.domain.CurrencyRequest;
-import br.com.ada.currencyapi.domain.CurrencyResponse;
+import br.com.ada.currencyapi.domain.*;
+import br.com.ada.currencyapi.repository.CurrencyRepository;
 import br.com.ada.currencyapi.service.CurrencyService;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.mockito.Mock;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.ResultActions;
-import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+
+import org.junit.jupiter.api.Test;
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
+import org.springframework.test.web.servlet.result.MockMvcResultHandlers;
+import org.springframework.test.web.servlet.result.MockMvcResultMatchers;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.is;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.print;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.hamcrest.Matchers.*;
 
-// Indicates that the test should load the complete configuration of the Spring Boot application.
-@SpringBootTest
-// Requests that MockMvc be configured automatically for the tests.
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.DEFINED_PORT)
 @AutoConfigureMockMvc
-class CurrencyControllerIntegrationTests {
+@Transactional
+public class CurrencyControllerIntegrationTests {
 
-    // Indicates that the attribute should be injected by Spring.
-    // Instance of MockMvc, which is a class provided by Spring to test controllers without the need to start a real HTTP server.
     @Autowired
     private MockMvc mockMvc;
 
-    // Creates a mock of the specified type to be used in the test.
-    // Mock of the CurrencyService type, used to simulate the behavior of the real service during testing.
-    @Mock
-    private CurrencyService currencyService;
+    @Autowired
+    private CurrencyRepository currencyRepository;
 
-    // List of currency responses used in the tests.
-    private List<CurrencyResponse> currencies;
+    private ObjectMapper objectMapper = new ObjectMapper();
 
-    // Indicates that the method will be executed before each test.
-    // Method executed before each test.
-    @BeforeEach
-    void setUp() {
-        // Configures MockMvc using the CurrencyController controller.
-        mockMvc = MockMvcBuilders.standaloneSetup(new CurrencyController(currencyService)).build();
+    /**
+     * Validates the retrieval of currencies. It checks for the correct status, content type, and structure of the response.
+     */
 
-        // Initializes the currencies list with some simulated currencies.
-        currencies = new ArrayList<>();
-        currencies.add(CurrencyResponse.builder().label("1 - LCS").build());
-        currencies.add(CurrencyResponse.builder().label("2 - YAS").build());
+    @Test
+    void testGetCurrencies200() throws Exception {
+        assertEquals(0, currencyRepository.count());
+
+        currencyRepository.save(new Currency(1L, "BRL", "BRL", null));
+
+        mockMvc.perform(get("/currency/get"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(1)))
+                .andDo(print());
+
+        currencyRepository.deleteAll();
     }
 
-    // Tests the GET endpoint /currency, which returns a list of currencies.
+    /**
+     * Tests the currency creation process, ensuring that the HTTP POST request behaves as expected, including the database persisting the new currency.
+     */
+
     @Test
-    void testGet() throws Exception {
-        // Uses Mockito to simulate the response from the CurrencyService.
-        when(currencyService.get()).thenReturn(currencies);
+    void testCreateCurrenciesSuccess() throws Exception {
+        HashMap<String, BigDecimal> exchangeRates = new HashMap<>();
+        exchangeRates.put("USD", new BigDecimal("1.1"));
+        CurrencyRequest request = new CurrencyRequest("EUR", "Euro", exchangeRates);
 
-        // Performs a simulated GET request to the /currency endpoint using MockMvc.
-        ResultActions resultActions = mockMvc.perform(get("/currency")
-                .contentType(MediaType.APPLICATION_JSON));
+        mockMvc.perform(post("/currency/create")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isCreated());
 
-        // Verifies if the received response contains the correct number of currencies and if the currency labels are correct.
-        resultActions.andExpect(status().isOk())
-                .andExpect(jsonPath("$", hasSize(2)))
-                .andExpect(jsonPath("$[0].label", is("1 - LCS")))
-                .andExpect(jsonPath("$[1].label", is("2 - YAS")));
+        assertEquals(1, currencyRepository.count());
+        currencyRepository.deleteAll();
     }
 
-    // Tests the POST endpoint /currency/convert, which converts a value from one currency to another based on exchange rates.
     @Test
-    void testConvert() throws Exception {
-        ConvertCurrencyResponse response = new ConvertCurrencyResponse(BigDecimal.valueOf(90.0));
-        // Configures Mockito to simulate the response from the CurrencyService.
-        when(currencyService.convert(any(ConvertCurrencyRequest.class))).thenReturn(response);
+    void testCreateCurrencies200() throws Exception {
+        CurrencyRequest request = CurrencyRequest.builder()
+                .name("USD")
+                .build();
 
-        // Performs a simulated POST request to the /currency/convert endpoint using MockMvc.
-        ResultActions resultActions = mockMvc.perform(post("/currency/convert")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"from\":\"USD\",\"to\":\"EUR\",\"amount\":100.0}"));
+        var content = new ObjectMapper().writeValueAsString(request);
 
-        // Verifies if the received response contains the correct conversion value.
-        resultActions.andExpect(status().isOk())
-                .andExpect(jsonPath("$.amount").value(90.0));
+        mockMvc.perform(
+                        MockMvcRequestBuilders.post("/currency/create")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .accept(MediaType.APPLICATION_JSON)
+                                .content(content)
+                )
+                .andExpect(MockMvcResultMatchers.status().isCreated())
+                .andExpect(jsonPath("$").isNotEmpty())
+                .andDo(MockMvcResultHandlers.print());
+
+        currencyRepository.deleteAll();
     }
 
-    // Tests the POST endpoint /currency, which creates a new currency in the system.
     @Test
-    void testCreate() throws Exception {
-        // Configures Mockito to simulate the response from the CurrencyService.
-        when(currencyService.create(any(CurrencyRequest.class))).thenReturn(1L);
+    void testCreateCurrencies500() throws Exception {
+        currencyRepository.save(new Currency(null, "USD", "Dollars", null));
+        CurrencyRequest request = new CurrencyRequest("USD", null, null);
 
-        // Performs a simulated POST request to the /currency endpoint using MockMvc.
-        ResultActions resultActions = mockMvc.perform(post("/currency")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"name\":\"USD\",\"description\":\"US Dollar\",\"exchanges\":{}}"));
+        mockMvc.perform(post("/currency/create")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$").value("Coin already exists"))
+                .andDo(print());
 
-        // Verifies if the received response has the correct status code for successful creation of a currency.
-        resultActions.andExpect(status().isCreated());
+        currencyRepository.deleteAll();
     }
 
-    // Tests the DELETE endpoint /currency/{id}, which deletes an existing currency based on its ID.
+    /**
+     * Focuses on the currency conversion endpoint, confirming that the logic to convert currencies based on a given rate functions correctly.
+     */
+
     @Test
-    void testDelete() throws Exception {
-        Long id = 1L;
+    void testConvertCurrencies() throws Exception {
+        Currency currency = new Currency(null, "USD", "US Dollar", Collections.singletonMap("EUR", new BigDecimal("0.85")));
+        currencyRepository.save(currency);
 
-        // Performs a simulated DELETE request to the /currency/{id} endpoint using MockMvc.
-        ResultActions resultActions = mockMvc.perform(delete("/currency/{id}", id)
-                .contentType(MediaType.APPLICATION_JSON));
+        mockMvc.perform(get("/currency/convert")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .param("from", "USD")
+                        .param("to", "EUR")
+                        .param("amount", "100"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.amount", is(85.0)))
+                .andReturn();
 
-        // Verifies if the received response has the correct status code for successful deletion of a currency.
-        resultActions.andExpect(status().isOk());
+        currencyRepository.deleteAll();
+    }
+
+    @Test
+    void testConvertCurrenciesCoinNotFound() throws Exception {
+        mockMvc.perform(get("/currency/convert?from=BRL&to=USD&amount=5"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$").value("Coin not found: BRL"))
+                .andDo(print());
+
+        currencyRepository.deleteAll();
+    }
+
+    @Test
+    void testConvertCurrenciesExchangeNotFound() throws Exception {
+        currencyRepository.save(new Currency(1L, "BRL", "BRL", Map.of("USD", BigDecimal.TEN)));
+
+        mockMvc.perform(get("/currency/convert?from=BRL&to=EUR&amount=5"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$").value("Exchange EUR not found for BRL"))
+                .andDo(print());
+
+        currencyRepository.deleteAll();
+    }
+
+    @Test
+    void testConvertCurrencies200() throws Exception {
+        currencyRepository.save(new Currency(1L, "BRL", "BRL", Map.of("USD", BigDecimal.TEN)));
+
+        mockMvc.perform(get("/currency/convert?from=BRL&to=USD&amount=5"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.amount").value(new BigDecimal("50")))
+                .andDo(print());
+
+        currencyRepository.deleteAll();
+    }
+
+    /**
+     * Ensures that currencies can be deleted and verifies that the deleted currency no longer exists in the database.
+     */
+
+    @Test
+    void testDeleteCurrenciesSuccess() throws Exception {
+        Currency currency = new Currency(null, "JPY", "Japanese Yen", new HashMap<>());
+        Currency savedCurrency = currencyRepository.save(currency);
+
+        mockMvc.perform(delete("/currency/delete/{id}", savedCurrency.getId()))
+                .andExpect(status().isOk());
+
+        assertFalse(currencyRepository.findById(savedCurrency.getId()).isPresent());
+    }
+
+    @Test
+    void testDeleteCurrencies200() throws Exception {
+        assertEquals(0, currencyRepository.count());
+
+        Currency currency = currencyRepository.save(new Currency(null, "BRL", "BRL", null));
+        mockMvc.perform(delete("/currency/delete/{id}", currency.getId()))
+                .andExpect(status().isOk())
+                .andDo(print());
     }
 }

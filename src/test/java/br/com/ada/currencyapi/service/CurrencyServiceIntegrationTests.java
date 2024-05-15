@@ -1,125 +1,107 @@
 package br.com.ada.currencyapi.service;
 
-import br.com.ada.currencyapi.domain.ConvertCurrencyRequest;
+import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Import;
+import org.springframework.cloud.openfeign.FeignClientFactory;
+
 import br.com.ada.currencyapi.domain.Currency;
 import br.com.ada.currencyapi.domain.CurrencyRequest;
-import br.com.ada.currencyapi.domain.CurrencyResponse;
-import br.com.ada.currencyapi.exception.CoinNotFoundException;
-import br.com.ada.currencyapi.exception.CurrencyException;
+import br.com.ada.currencyapi.domain.ConvertCurrencyRequest;
+import br.com.ada.currencyapi.domain.ConvertCurrencyResponse;
 import br.com.ada.currencyapi.repository.CurrencyRepository;
+import br.com.ada.currencyapi.exception.CoinNotFoundException;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.Mockito;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
+import static org.junit.jupiter.api.Assertions.*;
 
 import java.math.BigDecimal;
 import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.Optional;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-
-// This annotation informs Spring that this is a data access integration test, and it should configure the test environment to support database access.
 @DataJpaTest
-class CurrencyServiceIntegrationTests {
+@Import(CurrencyService.class)
+public class CurrencyServiceIntegrationTests {
 
-    // This field is automatically injected by Spring and represents the currency repository, which will be used in the tests.
     @Autowired
     private CurrencyRepository currencyRepository;
 
-    // This field will be used to instantiate the CurrencyService class that will be tested.
+    @Autowired
     private CurrencyService currencyService;
 
-    // This method is executed before each test and is used to initialize the instance of CurrencyService.
     @BeforeEach
     void setUp() {
-        currencyService = new CurrencyService(currencyRepository);
+        currencyRepository.deleteAll();
     }
 
-    // This test verifies if the get method returns a list of currencies as expected.
+    /**
+     * Tests both the creation and retrieval of a currency, ensuring the entire process is cohesive and correct data is stored and retrieved.
+     */
+
     @Test
-    void testGetCurrencies() {
-        // It creates two example currencies, saves them in the database, and verifies if the returned list contains both currencies.
-        Currency currency1 = new Currency(1L, "USD", "US Dollar", new HashMap<>());
-        Currency currency2 = new Currency(2L, "EUR", "Euro", new HashMap<>());
-        currencyRepository.save(currency1);
-        currencyRepository.save(currency2);
-
-        List<CurrencyResponse> currencies = currencyService.get();
-
-        assertEquals(2, currencies.size());
-        assertEquals("1 - USD", currencies.get(0).getLabel());
-        assertEquals("2 - EUR", currencies.get(1).getLabel());
-    }
-
-    // This test verifies if the create method creates a new currency as expected.
-    @Test
-    void testCreateCurrency() throws CurrencyException {
-        // It creates a new example currency, calls the create method to create the currency, and verifies if the details of the created currency match the provided data.
-        CurrencyRequest request = new CurrencyRequest("USD", "US Dollar", new HashMap<>());
-
+    void testCreateAndRetrieveCurrencies() {
+        CurrencyRequest request = new CurrencyRequest("EUR", "Euro", new HashMap<String, BigDecimal>() {{
+            put("USD", new BigDecimal("1.2"));
+        }});
         Long id = currencyService.create(request);
+        Currency found = currencyRepository.findById(id).orElse(null);
 
-        Currency currency = currencyRepository.findById(id).orElse(null);
-        assertEquals("USD", currency.getName());
-        assertEquals("US Dollar", currency.getDescription());
+        assertNotNull(found);
+        assertEquals("EUR", found.getName());
+        assertEquals("Euro", found.getDescription());
+        assertTrue(found.getExchanges().containsKey("USD"));
+        assertEquals(0, new BigDecimal("1.2").compareTo(found.getExchanges().get("USD")));
     }
 
-    // This test verifies if the create method throws an exception when a currency with the same name already exists in the database.
-    @Test
-    void testCreateExistingCurrency() {
-        Currency existingCurrency = new Currency(1L,"USD", "US Dollar", new HashMap<>());
-        currencyRepository.save(existingCurrency);
-        CurrencyRequest request = new CurrencyRequest("USD", "US Dollar", new HashMap<>());
+    /**
+     * Confirms that deleting a currency through the service layer also removes it from the database.
+     */
 
-        assertThrows(CurrencyException.class, () -> currencyService.create(request));
+    @Test
+    void testDeleteCurrencies() {
+        CurrencyRequest request = new CurrencyRequest("BTC", "Bitcoin", new HashMap<>());
+        Long id = currencyService.create(request);
+        currencyService.delete(id);
+
+        Optional<Currency> found = currencyRepository.findById(id);
+        assertFalse(found.isPresent());
     }
 
-    // This test verifies if the delete method deletes a currency from the database as expected.
+    /**
+     * Assesses the conversion functionality, particularly focusing on the accuracy of the conversion based on predefined exchange rates.
+     */
+
     @Test
-    void testDeleteCurrency() {
-        Currency currency = new Currency(1L, "USD", "US Dollar", new HashMap<>());
-        currencyRepository.save(currency);
+    void testConvertCurrencies() {
+        HashMap<String, BigDecimal> exchanges = new HashMap<>();
+        exchanges.put("USD", new BigDecimal("1.1"));
+        currencyRepository.save(new Currency(null, "EUR", "Euro", exchanges));
 
-        currencyService.delete(currency.getId());
+        ConvertCurrencyRequest convertRequest = new ConvertCurrencyRequest("EUR", "USD", new BigDecimal("100"));
+        ConvertCurrencyResponse response = currencyService.convert(convertRequest);
 
-        assertEquals(0, currencyRepository.count());
+        assertEquals(0, new BigDecimal("110.0").compareTo(response.getAmount()));
     }
 
-    // This test verifies if the convert method converts an amount from one currency to another as expected.
+    /**
+     * Check error handling in the service when trying to convert non-existent currencies or delete currencies that do not exist.
+     */
+
     @Test
-    void testConvertCurrency() throws CoinNotFoundException {
-        // It creates an example currency with exchange rates, calls the convert method, and verifies if the converted amount is correct.
-        Map<String, BigDecimal> exchanges = new HashMap<>();
-        exchanges.put("EUR", BigDecimal.valueOf(0.9));
-        Currency currency = new Currency(1L, "USD", "US Dollar", exchanges);
-        currencyRepository.save(currency);
-        ConvertCurrencyRequest request = new ConvertCurrencyRequest("USD", "EUR", BigDecimal.valueOf(100));
-
-        BigDecimal convertedAmount = currencyService.convert(request).getAmount();
-
-        assertEquals(BigDecimal.valueOf(90), convertedAmount);
+    void testConvertCurrenciesFailure() {
+        assertThrows(CoinNotFoundException.class, () -> {
+            ConvertCurrencyRequest convertRequest = new ConvertCurrencyRequest("XYZ", "USD", new BigDecimal("100"));
+            currencyService.convert(convertRequest);
+        });
     }
 
-    // This test verifies if the convert method throws an exception when one of the currencies involved in the conversion does not exist in the database.
+    /**
+     *
+     */
+
     @Test
-    void testConvertNonExistingCurrency() {
-        ConvertCurrencyRequest request = new ConvertCurrencyRequest("USD", "EUR", BigDecimal.valueOf(100));
-
-        assertThrows(CoinNotFoundException.class, () -> currencyService.convert(request));
-    }
-
-    // This test verifies if the convert method throws an exception when the exchange rate between the currencies is not available.
-    @Test
-    void testInvalidConversion() {
-        Map<String, BigDecimal> exchanges = new HashMap<>();
-        exchanges.put("EUR", BigDecimal.valueOf(0.9));
-        Currency currency = new Currency(1L, "USD", "US Dollar", exchanges);
-        currencyRepository.save(currency);
-        ConvertCurrencyRequest request = new ConvertCurrencyRequest("USD", "GBP", BigDecimal.valueOf(100));
-
-        assertThrows(CoinNotFoundException.class, () -> currencyService.convert(request));
+    void testDeleteNonExistentCurrencies() {
+        assertThrows(CoinNotFoundException.class, () -> currencyService.delete(999L));
     }
 }

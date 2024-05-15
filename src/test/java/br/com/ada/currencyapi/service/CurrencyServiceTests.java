@@ -1,15 +1,13 @@
 package br.com.ada.currencyapi.service;
 
-import java.math.BigDecimal;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-
 import br.com.ada.currencyapi.domain.*;
-import static org.junit.jupiter.api.Assertions.*;
+import br.com.ada.currencyapi.domain.Currency;
 import br.com.ada.currencyapi.exception.CoinNotFoundException;
 import br.com.ada.currencyapi.exception.CurrencyException;
+import br.com.ada.currencyapi.repository.feign.AwesomeAPIClient;
+import br.com.ada.currencyapi.repository.CurrencyRepository;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -17,127 +15,185 @@ import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import br.com.ada.currencyapi.repository.CurrencyRepository;
+import java.math.BigDecimal;
+import java.util.*;
 
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.any;
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-// @ExtendWith(MockitoExtension.class): This annotation indicates that JUnit should use the Mockito extension to run tests in this class.
 @ExtendWith(MockitoExtension.class)
-public class CurrencyServiceTests {
+class CurrencyServiceTests {
 
-    // @InjectMocks: This annotation automatically injects mocks (simulated objects) into the test class.
-    @InjectMocks
-    private CurrencyService currencyService;
-
-    // @Mock: This annotation indicates that currencyRepository is a mock that will be used in the tests.
     @Mock
     private CurrencyRepository currencyRepository;
 
-    // This test verifies if the get() method of CurrencyService correctly returns the currencies.
+    @Mock
+    private AwesomeAPIClient awesomeApiClient;
+
+    @InjectMocks
+    private CurrencyService currencyService;
+
+    private final List<Currency> currencyList = new ArrayList<>();
+
+    @BeforeEach
+    void setUp() {
+        currencyList.add(Currency.builder().id(1L).name("LCS").description("Lucas").exchanges(new HashMap<>()).build());
+        currencyList.add(Currency.builder().id(2L).name("YAS").description("Yasmin").exchanges(new HashMap<>()).build());
+    }
+
     @Test
-    void testGet() {
-        // Create a list of simulated currencies (list) and set the expected behavior of the findAll() method of currencyRepository to return this list.
-        List<Currency> list = new ArrayList<>();
-        list.add(Currency.builder()
-                .id(1L)
-                .name("LCS")
-                .description("Moeda do lucas")
-                .build());
-        list.add(Currency.builder()
-                .id(2L)
-                .name("YAS")
-                .description("Moeda da yasmin")
-                .build());
+    void testGetCurrencyAPI() {
+        Map<String, CurrencyAPIResponse> mockResponse = new HashMap<>();
 
-        when(currencyRepository.findAll()).thenReturn(list);
+        mockResponse.put("USDBRL", new CurrencyAPIResponse(
+                "USD", "BRL", "Dólar Americano/Real Brasileiro",
+                new BigDecimal("5.4"), new BigDecimal("5.3"),
+                new BigDecimal("-0.1"), convertPercentageToBigDecimal("-0.02%"),
+                new BigDecimal("5.35"), new BigDecimal("5.36"),
+                "1609459200", "2021-01-01T00:00:00Z"
+        ));
+        mockResponse.put("EURBRL", new CurrencyAPIResponse(
+                "EUR", "BRL", "Euro/Real Brasileiro",
+                new BigDecimal("6.2"), new BigDecimal("6.1"),
+                new BigDecimal("-0.05"), convertPercentageToBigDecimal("-0.08%"),
+                new BigDecimal("6.15"), new BigDecimal("6.16"),
+                "1609459200", "2021-01-01T00:00:00Z"
+        ));
 
-        // Invoke the get() method of currencyService.
-        List<CurrencyResponse> responses = currencyService.get();
-        // Verify that the response list is not null and contains two currencies with correct labels.
+        when(awesomeApiClient.getLastCurrencyAPI("USD-BRL,EUR-BRL")).thenReturn(mockResponse);
+
+        List<CurrencyResponse> responses = currencyService.getCurrencyAPI("USD-BRL,EUR-BRL");
+
+        responses.forEach(response -> System.out.println(response.getLabel()));
+
         assertNotNull(responses);
-        Assertions.assertEquals(2, responses.size());
-        Assertions.assertEquals("1 - LCS", responses.get(0).getLabel());
-        Assertions.assertEquals("2 - YAS", responses.get(1).getLabel());
+        assertEquals(2, responses.size());
+        assertTrue(responses.stream().anyMatch(r -> r.getLabel().contains("USD") && r.getLabel().contains("5.36")));
+        assertTrue(responses.stream().anyMatch(r -> r.getLabel().contains("EUR") && r.getLabel().contains("6.16")));
+
+        verify(awesomeApiClient).getLastCurrencyAPI("USD-BRL,EUR-BRL");
     }
 
-    // This test verifies the behavior of the create() method when a new currency is successfully created.
-    @Test
-    void testCreateCurrencySuccess() {
-        // Create a CurrencyRequest for a new currency.
-        CurrencyRequest request = new CurrencyRequest("INR", "Indian Rupee", new HashMap<>());
-
-        // Set the expected behavior of the findByName() method of currencyRepository to return null (indicating that the currency does not exist).
-        when(currencyRepository.findByName("INR")).thenReturn(null);
-        // Set the expected behavior of the save() method of currencyRepository to return a new currency with an ID.
-        when(currencyRepository.save(any(Currency.class))).thenReturn(new Currency(1L, "INR", "Indian Rupee", new HashMap<>()));
-
-        // Invoke the create() method of currencyService.
-        Long id = currencyService.create(request);
-
-        // Verify that the returned ID is not null.
-        assertNotNull(id);
+    private BigDecimal convertPercentageToBigDecimal(String percentage) {
+        if (percentage == null) return null;
+        return new BigDecimal(percentage.replace("%", "")).divide(BigDecimal.valueOf(100));
     }
 
-    // This test verifies the behavior of the create() method when a currency with the same name already exists.
+    /**
+     * Checks that all currencies are retrieved and returned as DTOs.
+     */
+
     @Test
-    void testCreateCurrencyFailure() {
-        // Set the expected behavior of the findByName() method of currencyRepository to return an existing currency.
-        Currency existingCurrency = new Currency(1L,"INR", "Indian Rupee", new HashMap<>());
-        when(currencyRepository.findByName("INR")).thenReturn(existingCurrency);
-
-        // Create a CurrencyRequest for a currency with the same name as the existing currency.
-        CurrencyRequest request = new CurrencyRequest("INR", "Indian Rupee", new HashMap<>());
-
-        // Verify that a CurrencyException is thrown when trying to create the duplicate currency.
-        assertThrows(CurrencyException.class, () -> currencyService.create(request), "Coin already exists");
+    void testGetCurrenciesSuccess() {
+        when(currencyRepository.findAll()).thenReturn(currencyList);
+        List<CurrencyResponse> responses = currencyService.get();
+        assertNotNull(responses);
+        assertEquals(2, responses.size());
+        verify(currencyRepository).findAll();
     }
 
-    // This test verifies if the delete() method of CurrencyService is called correctly.
+    /**
+     * Ensures the service handles and returns an empty list correctly when no currencies are available.
+     */
+
     @Test
-    public void testDeleteCurrency() {
-        Long id = 1L;
-        // Create a mock for CurrencyService.
-        CurrencyService service = Mockito.mock(CurrencyService.class);
+    void testGetCurrenciesFailureEmpty() {
+        when(currencyRepository.findAll()).thenReturn(new ArrayList<>());
 
-        // Invoke the delete() method of CurrencyService.
-        service.delete(id);
-
-        // Verify that the delete() method of the mock was called with the correct ID.
-        Mockito.verify(service).delete(id);
+        List<CurrencyResponse> responses = currencyService.get();
+        assertEquals(0, responses.size());
     }
 
-    // This test verifies the behavior of the convert() method when the currency conversion is successful.
+    /**
+     * Confirms that a currency can be successfully created if it does not already exist.
+     */
+
     @Test
-    void testConvertCurrencySuccess() throws CoinNotFoundException {
-        // Create a ConvertCurrencyRequest for a currency conversion.
-        ConvertCurrencyRequest request = new ConvertCurrencyRequest("INR", "YAS", new BigDecimal("100"));
-        HashMap<String, BigDecimal> exchanges = new HashMap<>();
-        exchanges.put("YAS", new BigDecimal("0.85"));
-        Currency fromCurrency = new Currency(1L,"INR", "Indian Rupee", exchanges);
+    void testCreateCurrenciesSuccess() {
+        when(currencyRepository.findByName(Mockito.anyString())).thenReturn(null);
+        when(currencyRepository.save(Mockito.any(Currency.class))).thenReturn(currencyList.get(0));
 
-        // Set the expected behavior of the findByName() method of currencyRepository to return a source currency with a list of exchanges.
-        when(currencyRepository.findByName("INR")).thenReturn(fromCurrency);
+        CurrencyRequest request = CurrencyRequest.builder().name("BTC").description("Bitcoin").exchanges(new HashMap<>()).build();
 
-        // Verify that the conversion is performed correctly and the result is as expected.
-        ConvertCurrencyResponse response = currencyService.convert(request);
-        assertNotNull(response);
-        assertEquals(new BigDecimal ("85.00"), response.getAmount());
+        assertEquals(1L, currencyService.create(request));
     }
 
-    // This test verifies the behavior of the convert() method when the source currency is not found.
-    @Test
-    void testConvertCurrencyFailure() {
-        // Set the expected behavior of the findByName() method of currencyRepository to return null.
-        ConvertCurrencyRequest request = new ConvertCurrencyRequest("INR", "YAS", new BigDecimal("100"));
-        when(currencyRepository.findByName("INR")).thenReturn(null);
+    /**
+     * Ensures the service throws an exception when attempting to create a currency that already exists.
+     */
 
-        // Verify that a CoinNotFoundException is thrown when trying to convert a currency that does not exist.
-        Exception exception = Assertions.assertThrows(CoinNotFoundException.class, () -> {
-            currencyService.convert(request);
-        });
-        assertEquals("Coin not found: INR", exception.getMessage());
+    @Test
+    void testCreateCurrenciesFailureAlreadyExists() {
+        when(currencyRepository.findByName(Mockito.anyString())).thenReturn(currencyList.get(0));
+
+        CurrencyRequest request = CurrencyRequest.builder().name("YAS").description("Yasmin").exchanges(new HashMap<>()).build();
+
+        assertThrows(CurrencyException.class, () -> currencyService.create(request));
+    }
+
+    /**
+     * Tests the deletion functionality by confirming the repository's delete method is called.
+     */
+
+    @Test
+    void testDeleteCurrenciesSuccess() {
+        when(currencyRepository.findById(1L)).thenReturn(Optional.ofNullable(currencyList.get(0)));
+        currencyService.delete(1L);
+        verify(currencyRepository, Mockito.times(1)).deleteById(Mockito.anyLong());
+    }
+
+    /**
+     * Checks the appropriate exception is thrown when trying to delete a non-existing currency.
+     */
+
+    @Test
+    void testDeleteCurrenciesNotExists() {
+        when(currencyRepository.findById(Mockito.anyLong())).thenReturn(Optional.empty());
+
+        CoinNotFoundException exception = assertThrows(CoinNotFoundException.class, () -> currencyService.delete(1L));
+        assertEquals("Coin not found: 1", exception.getMessage());
+    }
+
+    /**
+     * Verifies conversion logic by using the repository to fetch currency and exchange rates.
+     */
+
+    @Test
+    void testConvertCurrencies() {
+        currencyList.get(0).getExchanges().put("BTC", BigDecimal.TEN);
+
+        ConvertCurrencyRequest request = ConvertCurrencyRequest.builder().to("BTC").from("YAS").amount(BigDecimal.ONE).build();
+
+        when(currencyRepository.findByName("YAS")).thenReturn(currencyList.get(0));
+
+        Assertions.assertEquals(BigDecimal.TEN, currencyService.convert(request).getAmount());
+
+    }
+
+    /**
+     * Test error handling when necessary data is missing or incorrect in conversion requests.
+     */
+
+    @Test
+    void convertCurrenciesExchangeNotFound() {
+        ConvertCurrencyRequest request = ConvertCurrencyRequest.builder().to("BTC").from("YAS").amount(BigDecimal.ONE).build();
+
+        when(currencyRepository.findByName("YAS")).thenReturn(currencyList.get(0));
+
+        CoinNotFoundException exception = assertThrows(CoinNotFoundException.class, () -> currencyService.convert(request));
+        assertEquals("Exchange BTC not found for YAS", exception.getMessage());
+    }
+
+    /**
+     * Test error handling when necessary data is missing or incorrect in conversion requests.
+     */
+
+    @Test
+    void convertCurrenciesCoinNotFound() {
+        ConvertCurrencyRequest request = ConvertCurrencyRequest.builder().to("BTC").from("YAS").amount(BigDecimal.ONE).build();
+
+        CoinNotFoundException exception = assertThrows(CoinNotFoundException.class, () -> currencyService.convert(request));
+        assertEquals("Coin not found: YAS", exception.getMessage());
     }
 }

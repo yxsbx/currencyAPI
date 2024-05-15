@@ -8,7 +8,7 @@ import lombok.Setter;
 
 import java.io.Serializable;
 import java.math.BigDecimal;
-import java.util.Map;
+import java.util.HashMap;
 
 @Getter
 @Setter
@@ -19,6 +19,6 @@ public class CurrencyRequest implements Serializable {
 
     private String name;
     private String description;
-    private Map<String, BigDecimal> exchanges;
+    private HashMap<String, BigDecimal> exchanges;
 
 }

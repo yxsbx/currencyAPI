@@ -1,140 +1,137 @@
 package br.com.ada.currencyapi.controller;
 
+import br.com.ada.currencyapi.domain.*;
+import br.com.ada.currencyapi.service.CurrencyService;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.Mockito;
+import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
+
 import java.util.List;
 
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import br.com.ada.currencyapi.domain.*;
-import br.com.ada.currencyapi.service.CurrencyService;
-
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.extension.ExtendWith;
-
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-
-import org.springframework.test.web.servlet.result.MockMvcResultHandlers;
-import org.springframework.test.web.servlet.setup.MockMvcBuilders;
-
-// GET /currency: Returns a list of available currencies.
-// POST /currency/convert: Converts an amount from one currency to another based on exchange rates.
-// POST /currency: Creates a new currency in the system.
-// DELETE /currency/{id}: Deletes an existing currency based on its ID.
-// Indicates that JUnit should use the Mockito extension to execute tests in this class. This sets up the environment to use Mockito in the test.
 @ExtendWith(MockitoExtension.class)
 class CurrencyControllerTests {
 
-    // An instance of MockMvc, which is a class provided by Spring for testing controllers without the need to start an HTTP server.
-    private MockMvc mockMvc;
-
-    // A mock for the CurrencyService class, used to simulate the behavior of the service during tests.
     @Mock
     private CurrencyService currencyService;
 
-    // An instance of the controller being tested. The previously defined mocks will be injected into this controller.
     @InjectMocks
     private CurrencyController currencyController;
 
-    // Indicates that the method should be executed before each test. In the setUp() method, the MockMvc object is configured to test the controller's endpoints.
+    private MockMvc mockMvc;
+
+    private final List<CurrencyResponse> currencies = new ArrayList<>();
+
     @BeforeEach
-    // Test environment setup. Initializes MockMvc to test the controller's endpoints.
     void setUp() {
         mockMvc = MockMvcBuilders.standaloneSetup(currencyController).build();
+
+        currencies.add(CurrencyResponse.builder().label("1 - LCS").build());
+        currencies.add(CurrencyResponse.builder().label("2 - YAS").build());
     }
 
-    // Tests the GET /currency endpoint, which returns a list of currencies.
     @Test
-    void testGet() throws Exception{
-        List<CurrencyResponse> list = new ArrayList<>();
-        list.add(CurrencyResponse.builder().label("1 - LCS").build());
-        list.add(CurrencyResponse.builder().label("2 - YAS").build());
-        when(currencyService.get()).thenReturn(list);
+    public void testGetAPICurrencyRates() throws Exception {
+        when(currencyService.getCurrencyAPI("USD-BRL")).thenReturn(List.of(new CurrencyResponse("USD - 5.36")));
 
-        // Configures the behavior of the currencyService mock to return a list of simulated currencies.
-        // Uses MockMvc to simulate a GET request to the /currency endpoint.
-        mockMvc.perform(get("/currency")
-                .contentType(MediaType.APPLICATION_JSON))
-                // Verifies if the response is correct, comparing the response status, the size of the list, and the labels of the currencies.
+        mockMvc.perform(get("/json/last/USD-BRL"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].label").value("USD - 5.36"));
+    }
+
+    @Test
+    void testGetCurrencyAPIRatesFailure() throws Exception {
+        when(currencyService.getCurrencyAPI("USD-BRL")).thenThrow(new RuntimeException("Failed to fetch data"));
+
+        mockMvc.perform(get("/json/last/USD-BRL"))
+                .andExpect(status().isInternalServerError());
+    }
+
+    /**
+     * Ensures that the endpoint returns all currencies correctly formatted and with a status of 200 OK.
+     */
+
+    @Test
+    void testGetCurrenciesSuccess() throws Exception {
+        when(currencyService.get()).thenReturn(currencies);
+
+        mockMvc.perform(get("/get")
+                        .contentType(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(2)))
                 .andExpect(jsonPath("$[0].label", is("1 - LCS")))
                 .andExpect(jsonPath("$[1].label", is("2 - YAS")))
-                .andDo(MockMvcResultHandlers.print());
-
-        // Verifies if the get() method of currencyService was called exactly once.
-        verify(currencyService, times(1)).get();
+                .andReturn();
     }
 
-    // Tests the POST /currency/convert endpoint, which converts an amount from one currency to another.
-    @Test
-    void testConvert() throws Exception {
-        ConvertCurrencyResponse response = new ConvertCurrencyResponse(BigDecimal.valueOf(90.0));
-        // Configures the behavior of the currencyService mock to return a simulated response.
-        when(currencyService.convert(any(ConvertCurrencyRequest.class))).thenReturn(response);
+    /**
+     * Validates that the creation endpoint returns the correct ID of the created currency and responds with 201 Created.
+     */
 
-        // Verifies if the response is correct, comparing the response status and the converted value.
-        mockMvc.perform(post("/currency/convert")
+    @Test
+    void testCreateCurrenciesSuccess() throws Exception {
+        when(currencyService.create(Mockito.any(CurrencyRequest.class))).thenReturn(1L);
+
+        CurrencyRequest request = CurrencyRequest.builder().build();
+        String jsonRequest = new ObjectMapper().writeValueAsString(request);
+
+        mockMvc.perform(post("/create")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"from\":\"USD\",\"to\":\"EUR\",\"amount\":100.0}"))
+                        .content(jsonRequest))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$", is(1)))
+                .andReturn();
+    }
+
+    /**
+     * Checks that currency conversion returns the expected converted amount and handles the request correctly.
+     */
+
+    @Test
+    void testConvertCurrencies() throws Exception {
+        ConvertCurrencyResponse response = new ConvertCurrencyResponse(BigDecimal.TEN);
+
+        when(currencyService.convert(Mockito.any(ConvertCurrencyRequest.class))).thenReturn(response);
+
+        mockMvc.perform(get("/convert")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .param("from", "USD")
+                        .param("to", "EUR")
+                        .param("amount", "100"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.amount").value(90.0));
-
-        // Verifies if the convert() method of currencyService was called exactly once.
-        verify(currencyService, times(1)).convert(any(ConvertCurrencyRequest.class));
+                .andExpect(jsonPath("$.amount", is(10)))
+                .andReturn();
     }
 
-    // Tests the POST /currency endpoint, which creates a new currency.
+    /**
+     * Tests the deletion process to ensure the endpoint responds with 200 OK and the service method is called as expected.
+     */
+
     @Test
-    void testCreate() throws Exception {
-        CurrencyRequest request = CurrencyRequest.builder()
-                .name("USD")
-                .description("US Dollar")
-                .build();
+    void testDeleteCurrenciesSuccess() throws Exception {
+        Mockito.doNothing().when(currencyService).delete(Mockito.anyLong());
 
-        // Configures the behavior of the currencyService mock to return the ID of the created currency.
-        when(currencyService.create(any(CurrencyRequest.class))).thenReturn(1L);
+        mockMvc.perform(delete("/{id}", Mockito.anyLong()))
+                .andExpect(status().isOk())
+                .andReturn();
 
-        // Uses MockMvc to simulate a POST request to the /currency endpoint.
-        mockMvc.perform(post("/currency")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"name\":\"USD\",\"description\":\"US Dollar\",\"exchanges\":{}}"))
-                // Verifies if the response is correct, comparing the response status.
-                .andExpect(status().isCreated());
-
-        // Verifies if the create() method of currencyService was called exactly once.
-        verify(currencyService, times(1)).create(any(CurrencyRequest.class));
-    }
-
-    // Tests the DELETE /currency/{id} endpoint, which deletes a currency by its ID.
-    @Test
-    void testDelete() throws Exception {
-        Long id = 1L;
-
-        // Uses MockMvc to simulate a DELETE request to the /currency/{id} endpoint.
-        mockMvc.perform(delete("/currency/{id}", id)
-                        .contentType(MediaType.APPLICATION_JSON))
-                // Verifies if the response is correct, comparing the response status.
-                .andExpect(status().isOk());
-
-        // Verifies if the delete() method of currencyService was called exactly once.
-        verify(currencyService, times(1)).delete(id);
+        Mockito.verify(currencyService, Mockito.times(1)).delete(Mockito.anyLong());
     }
 }
