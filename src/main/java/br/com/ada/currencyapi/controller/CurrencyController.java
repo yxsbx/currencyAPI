@@ -54,6 +54,7 @@ public class CurrencyController {
         return ResponseEntity.ok().build();
     }
 
+
     @GetMapping("/json/last/{currencies}")
     public ResponseEntity<List<CurrencyResponse>> getLastCurrencies(@PathVariable String currencies) {
         try {
