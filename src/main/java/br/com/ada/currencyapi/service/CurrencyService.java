@@ -1,12 +1,9 @@
 package br.com.ada.currencyapi.service;
 
 import java.math.BigDecimal;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.stream.Collectors;
+import java.util.*;
 
+import br.com.ada.currencyapi.domain.Currency;
 import br.com.ada.currencyapi.repository.feign.AwesomeAPIClient;
 
 import br.com.ada.currencyapi.domain.*;
@@ -32,7 +29,7 @@ public class CurrencyService {
     private static final String EXCHANGE_RATE_NOT_FOUND = "Exchange rate not found for %s to %s";
     private static final String CONVERSION_DATA_NOT_FOUND = "Currency conversion data not found for %s to %s";
 
-    public List<CurrencyResponse> get() {
+    public List<CurrencyResponse> getStoredCurrencies() {
         List<Currency> currencies = currencyRepository.findAll();
         List<CurrencyResponse> dtos = new ArrayList<>();
 
@@ -44,7 +41,7 @@ public class CurrencyService {
     }
 
     public Long create(CurrencyRequest request) throws CurrencyException {
-        validateCurrencyRequest(request);
+        validateGetStoredCurrencies(request);
         Currency currency = currencyRepository.findByName(request.getName());
 
         if (Objects.nonNull(currency)) {
@@ -59,61 +56,9 @@ public class CurrencyService {
         return saved.getId();
     }
 
-    public void delete(Long id) {
-        validateCurrencyId(id);
-        Currency from = currencyRepository.findById(id).orElseThrow(
-                () -> new CoinNotFoundException(String.format(COIN_NOT_FOUND, id))
-        );
-
-        currencyRepository.deleteById(from.getId());
-    }
-
-    private BigDecimal calculateAmount(ConvertCurrencyRequest request, boolean useAPI) throws CoinNotFoundException {
-        Currency from = currencyRepository.findByName(request.getFrom());
-        String errorMessage = String.format(COIN_NOT_FOUND, request.getFrom());
-
-        if (Objects.isNull(from)) {
-            throw new CoinNotFoundException(errorMessage);
-        }
-
-        String tag = request.getTo() + "_" + request.getFrom();
-        Map<String, CurrencyAPIResponse> responseMap = useAPI ? awesomeApiClient.getLastCurrencyAPI(tag) : null;
-
-        if (responseMap != null && !responseMap.isEmpty()) {
-            CurrencyAPIResponse currencyAPIResponse = responseMap.values().iterator().next();
-            BigDecimal exchangeRate = currencyAPIResponse.getBid();
-            errorMessage = String.format(EXCHANGE_RATE_NOT_FOUND, request.getFrom(), request.getTo());
-
-            if (Objects.isNull(exchangeRate)) {
-                throw new CoinNotFoundException(errorMessage);
-            }
-
-            return request.getAmount().multiply(exchangeRate);
-        } else {
-            errorMessage = String.format(CONVERSION_DATA_NOT_FOUND, request.getFrom(), request.getTo());
-            throw new CoinNotFoundException(errorMessage);
-        }
-    }
-
-    public ConvertCurrencyResponse convert(ConvertCurrencyRequest request) throws CoinNotFoundException {
-        validateConvertRequest(request);
-        BigDecimal amount = calculateAmount(request, false); // Use repository
-        return ConvertCurrencyResponse.builder()
-                .amount(amount)
-                .build();
-    }
-
-    public ConvertCurrencyResponse convertCurrencyAPI(ConvertCurrencyRequest request) throws CoinNotFoundException {
-        validateConvertRequest(request);
-        BigDecimal amount = calculateAmount(request, true);
-        return ConvertCurrencyResponse.builder()
-                .amount(amount)
-                .build();
-    }
-
     public void update(Long id, CurrencyRequest request) throws CurrencyException {
         validateCurrencyId(id);
-        validateCurrencyRequest(request);
+        validateGetStoredCurrencies(request);
 
         Currency currency = currencyRepository.findById(id).orElseThrow(
                 () -> new CoinNotFoundException(String.format(COIN_NOT_FOUND, id))
@@ -132,11 +77,10 @@ public class CurrencyService {
         currencyRepository.save(currency);
     }
 
-    private void validateCurrencyRequest(CurrencyRequest request) throws IllegalArgumentException {
+    private void validateGetStoredCurrencies(CurrencyRequest request) throws IllegalArgumentException {
         if (Objects.isNull(request) || StringUtils.isEmpty(request.getName())) {
             throw new IllegalArgumentException(INVALID_CURRENCY_REQUEST);
         }
-        // Add more validations if needed
     }
 
     private void validateCurrencyId(Long id) throws IllegalArgumentException {
@@ -145,12 +89,66 @@ public class CurrencyService {
         }
     }
 
+    public void delete(Long id) {
+        validateCurrencyId(id);
+        Currency from = currencyRepository.findById(id).orElseThrow(
+                () -> new CoinNotFoundException(String.format(COIN_NOT_FOUND, id))
+        );
+
+        currencyRepository.deleteById(from.getId());
+    }
+
+    public Map<String, CurrencyAPIResponse> getLastCurrencyAPI(List<String> currenciesAPI) {
+        return awesomeApiClient.getLastCurrency(currenciesAPI);
+    }
+
+    private BigDecimal calculateAmount(ConvertCurrencyRequest request, boolean getLastCurrencyAPI) throws CoinNotFoundException {
+        String currencyCode = null;
+        BigDecimal exchangeRate;
+
+        if (getLastCurrencyAPI) {
+            Currency currency = currencyRepository.findById(Long.valueOf(request.getFrom())).orElse(null);
+            if (currency == null) {
+                throw new CoinNotFoundException(String.format(COIN_NOT_FOUND, Long.valueOf(request.getFrom())));
+            }
+            currencyCode = currency.getName();
+        } else {
+            Currency from = currencyRepository.findById(Long.valueOf(request.getFrom())).orElse(null);
+            Currency to = currencyRepository.findById(Long.valueOf(request.getTo())).orElse(null);
+            if (from == null || to == null) {
+                throw new CoinNotFoundException(String.format(COIN_NOT_FOUND, Long.valueOf(request.getFrom()) + " or " + Long.valueOf(request.getTo())));
+            }
+            exchangeRate = from.getExchanges().get(to.getName());
+            if (exchangeRate == null) {
+                throw new CoinNotFoundException(String.format(EXCHANGE_RATE_NOT_FOUND, from.getName(), to.getName()));
+            }
+            return request.getAmount().multiply(exchangeRate);
+        }
+
+        Map<String, CurrencyAPIResponse> responseMap = awesomeApiClient.getLastCurrency(Arrays.asList(currencyCode));
+        if (responseMap != null && !responseMap.isEmpty()) {
+            CurrencyAPIResponse currencyAPIResponse = responseMap.get(currencyCode);
+            exchangeRate = currencyAPIResponse.getBid();
+            if (exchangeRate == null) {
+                throw new CoinNotFoundException(String.format(EXCHANGE_RATE_NOT_FOUND, request.getFrom(), request.getTo()));
+            }
+            return request.getAmount().multiply(exchangeRate);
+        } else {
+            throw new CoinNotFoundException(String.format(CONVERSION_DATA_NOT_FOUND, request.getFrom(), request.getTo()));
+        }
+    }
+
+    public ConvertCurrencyResponse convert(ConvertCurrencyRequest request) throws CoinNotFoundException {
+        validateConvertRequest(request);
+        BigDecimal amount = calculateAmount(request, true);
+        return ConvertCurrencyResponse.builder()
+                .amount(amount)
+                .build();
+    }
+
     private void validateConvertRequest(ConvertCurrencyRequest request) throws IllegalArgumentException {
         if (Objects.isNull(request) || StringUtils.isEmpty(request.getFrom()) || StringUtils.isEmpty(request.getTo()) || Objects.isNull(request.getAmount())) {
             throw new IllegalArgumentException(INVALID_CONVERT_REQUEST);
         }
-    }
-
-    public List<CurrencyResponse> getCurrencyAPI(String currencies) {
     }
 }

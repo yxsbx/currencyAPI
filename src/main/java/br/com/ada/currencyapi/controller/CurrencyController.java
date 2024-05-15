@@ -1,32 +1,28 @@
 package br.com.ada.currencyapi.controller;
 
 
-import br.com.ada.currencyapi.domain.ConvertCurrencyRequest;
-import br.com.ada.currencyapi.domain.ConvertCurrencyResponse;
-import br.com.ada.currencyapi.domain.CurrencyRequest;
-import br.com.ada.currencyapi.domain.CurrencyResponse;
+import br.com.ada.currencyapi.domain.*;
 import br.com.ada.currencyapi.exception.CoinNotFoundException;
 import br.com.ada.currencyapi.exception.CurrencyException;
 import br.com.ada.currencyapi.service.CurrencyService;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
-@Slf4j
+@RequiredArgsConstructor
 @RestController
 @RequestMapping("/currency")
-@RequiredArgsConstructor
 public class CurrencyController {
 
     private final CurrencyService currencyService;
 
     @GetMapping
     public ResponseEntity<List<CurrencyResponse>> get() {
-        List<CurrencyResponse> currencies = currencyService.get();
+        List<CurrencyResponse> currencies = currencyService.getStoredCurrencies();
         return ResponseEntity.ok(currencies);
     }
 
@@ -54,15 +50,9 @@ public class CurrencyController {
         return ResponseEntity.ok().build();
     }
 
-
-    @GetMapping("/json/last/{currencies}")
-    public ResponseEntity<List<CurrencyResponse>> getLastCurrencies(@PathVariable String currencies) {
-        try {
-            List<CurrencyResponse> apiResponses = currencyService.convertCurrencyAPI(currencies);
-            return ResponseEntity.ok(apiResponses);
-        } catch (Exception e) {
-            log.error("Error fetching currency rates: ", e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
-        }
+    @GetMapping("/json/last")
+    public ResponseEntity<Map<String, CurrencyAPIResponse>> getLastCurrencyAPI(@RequestParam List<String> currenciesAPI) {
+        Map<String, CurrencyAPIResponse> currenciesAPIResponse = currencyService.getLastCurrencyAPI(currenciesAPI);
+        return ResponseEntity.ok(currenciesAPIResponse);
     }
 }

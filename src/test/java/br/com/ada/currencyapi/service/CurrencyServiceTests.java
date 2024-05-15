@@ -61,7 +61,7 @@ class CurrencyServiceTests {
                 "1609459200", "2021-01-01T00:00:00Z"
         ));
 
-        when(awesomeApiClient.getLastCurrencyAPI("USD-BRL,EUR-BRL")).thenReturn(mockResponse);
+        when(awesomeApiClient.getLastCurrency("USD-BRL,EUR-BRL")).thenReturn(mockResponse);
 
         List<CurrencyResponse> responses = currencyService.getCurrencyAPI("USD-BRL,EUR-BRL");
 
@@ -72,7 +72,7 @@ class CurrencyServiceTests {
         assertTrue(responses.stream().anyMatch(r -> r.getLabel().contains("USD") && r.getLabel().contains("5.36")));
         assertTrue(responses.stream().anyMatch(r -> r.getLabel().contains("EUR") && r.getLabel().contains("6.16")));
 
-        verify(awesomeApiClient).getLastCurrencyAPI("USD-BRL,EUR-BRL");
+        verify(awesomeApiClient).getLastCurrency("USD-BRL,EUR-BRL");
     }
 
     private BigDecimal convertPercentageToBigDecimal(String percentage) {

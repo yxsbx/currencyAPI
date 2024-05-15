@@ -22,5 +22,5 @@ public class CurrencyAPIResponse {
     private BigDecimal bid;
     private BigDecimal ask;
     private String timestamp;
-    private String createDate;
+    private String create_Date;
 }
