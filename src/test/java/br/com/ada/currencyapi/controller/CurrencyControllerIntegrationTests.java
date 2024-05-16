@@ -48,27 +48,19 @@ public class CurrencyControllerIntegrationTests {
 
     private ObjectMapper objectMapper = new ObjectMapper();
 
-    /**
-     * Validates the retrieval of currencies. It checks for the correct status, content type, and structure of the response.
-     */
-
     @Test
     void testGetCurrencies200() throws Exception {
         assertEquals(0, currencyRepository.count());
 
         currencyRepository.save(new Currency(1L, "BRL", "BRL", null));
 
-        mockMvc.perform(get("/currency/get"))
+        mockMvc.perform(get("/currency"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(1)))
                 .andDo(print());
 
         currencyRepository.deleteAll();
     }
-
-    /**
-     * Tests the currency creation process, ensuring that the HTTP POST request behaves as expected, including the database persisting the new currency.
-     */
 
     @Test
     void testCreateCurrenciesSuccess() throws Exception {
@@ -121,10 +113,6 @@ public class CurrencyControllerIntegrationTests {
         currencyRepository.deleteAll();
     }
 
-    /**
-     * Focuses on the currency conversion endpoint, confirming that the logic to convert currencies based on a given rate functions correctly.
-     */
-
     @Test
     void testConvertCurrencies() throws Exception {
         Currency currency = new Currency(null, "USD", "US Dollar", Collections.singletonMap("EUR", new BigDecimal("0.85")));
@@ -175,10 +163,6 @@ public class CurrencyControllerIntegrationTests {
 
         currencyRepository.deleteAll();
     }
-
-    /**
-     * Ensures that currencies can be deleted and verifies that the deleted currency no longer exists in the database.
-     */
 
     @Test
     void testDeleteCurrenciesSuccess() throws Exception {

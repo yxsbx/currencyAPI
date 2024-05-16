@@ -1,6 +1,8 @@
 package br.com.ada.currencyapi.controller;
 
 import br.com.ada.currencyapi.domain.*;
+import br.com.ada.currencyapi.exception.CoinNotFoundException;
+import br.com.ada.currencyapi.exception.CurrencyException;
 import br.com.ada.currencyapi.service.CurrencyService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -8,130 +10,177 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
-import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import java.math.BigDecimal;
-import java.util.ArrayList;
-
+import java.util.Arrays;
 import java.util.List;
 
-import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.is;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @ExtendWith(MockitoExtension.class)
-class CurrencyControllerTests {
+@WebMvcTest(CurrencyController.class)
+public class CurrencyControllerTests {
+
+    @Autowired
+    private MockMvc mockMvc;
 
     @Mock
     private CurrencyService currencyService;
 
-    @InjectMocks
-    private CurrencyController currencyController;
-
-    private MockMvc mockMvc;
-
-    private final List<CurrencyResponse> currencies = new ArrayList<>();
-
-    @BeforeEach
-    void setUp() {
-        mockMvc = MockMvcBuilders.standaloneSetup(currencyController).build();
-
-        currencies.add(CurrencyResponse.builder().label("1 - LCS").build());
-        currencies.add(CurrencyResponse.builder().label("2 - YAS").build());
-    }
+    @Autowired
+    private ObjectMapper objectMapper;
 
     @Test
-    public void testGetAPICurrencyRates() throws Exception {
-        when(currencyService.getCurrencyAPI("USD-BRL")).thenReturn(List.of(new CurrencyResponse("USD - 5.36")));
+    void testGetCurrencies() throws Exception {
+        CurrencyResponse currency1 = CurrencyResponse.builder().label("USD - US Dollar").build();
+        CurrencyResponse currency2 = CurrencyResponse.builder().label("EUR - Euro").build();
+        List<CurrencyResponse> currencyList = Arrays.asList(currency1, currency2);
 
-        mockMvc.perform(get("/json/last/USD-BRL"))
+        when(currencyService.get()).thenReturn(currencyList);
+
+        mockMvc.perform(get("/currency"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].label").value("USD - 5.36"));
+                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$[0].label").value("USD - US Dollar"))
+                .andExpect(jsonPath("$[1].label").value("EUR - Euro"));
     }
 
     @Test
-    void testGetCurrencyAPIRatesFailure() throws Exception {
-        when(currencyService.getCurrencyAPI("USD-BRL")).thenThrow(new RuntimeException("Failed to fetch data"));
+    void testConvertCurrency() throws Exception {
+        ConvertCurrencyRequest request = ConvertCurrencyRequest.builder()
+                .from("USD")
+                .to("EUR")
+                .amount(BigDecimal.valueOf(100))
+                .build();
 
-        mockMvc.perform(get("/json/last/USD-BRL"))
-                .andExpect(status().isInternalServerError());
-    }
+        ConvertCurrencyResponse expectedResponse = ConvertCurrencyResponse.builder()
+                .amount(BigDecimal.valueOf(85))
+                .build();
 
-    /**
-     * Ensures that the endpoint returns all currencies correctly formatted and with a status of 200 OK.
-     */
+        when(currencyService.convert(any(ConvertCurrencyRequest.class))).thenReturn(expectedResponse);
 
-    @Test
-    void testGetCurrenciesSuccess() throws Exception {
-        when(currencyService.get()).thenReturn(currencies);
-
-        mockMvc.perform(get("/get")
-                        .contentType(MediaType.APPLICATION_JSON))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$", hasSize(2)))
-                .andExpect(jsonPath("$[0].label", is("1 - LCS")))
-                .andExpect(jsonPath("$[1].label", is("2 - YAS")))
-                .andReturn();
-    }
-
-    /**
-     * Validates that the creation endpoint returns the correct ID of the created currency and responds with 201 Created.
-     */
-
-    @Test
-    void testCreateCurrenciesSuccess() throws Exception {
-        when(currencyService.create(Mockito.any(CurrencyRequest.class))).thenReturn(1L);
-
-        CurrencyRequest request = CurrencyRequest.builder().build();
-        String jsonRequest = new ObjectMapper().writeValueAsString(request);
-
-        mockMvc.perform(post("/create")
+        mockMvc.perform(post("/currency/convert")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(jsonRequest))
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.amount").value(85));
+    }
+
+    @Test
+    void testConvertCurrency_CoinNotFoundException() throws Exception {
+        ConvertCurrencyRequest request = ConvertCurrencyRequest.builder()
+                .from("USD")
+                .to("EUR")
+                .amount(BigDecimal.valueOf(100))
+                .build();
+
+        when(currencyService.convert(any(ConvertCurrencyRequest.class))).thenThrow(new CoinNotFoundException("Coin not found: USD"));
+
+        mockMvc.perform(post("/currency/convert")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void testCreateCurrency() throws Exception {
+        CurrencyRequest request = CurrencyRequest.builder()
+                .name("USD")
+                .description("US Dollar")
+                .exchanges(null)
+                .build();
+
+        Long expectedId = 1L;
+
+        when(currencyService.create(any(CurrencyRequest.class))).thenReturn(expectedId);
+
+        mockMvc.perform(post("/currency")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$", is(1)))
-                .andReturn();
+                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$").value(expectedId));
     }
 
-    /**
-     * Checks that currency conversion returns the expected converted amount and handles the request correctly.
-     */
-
     @Test
-    void testConvertCurrencies() throws Exception {
-        ConvertCurrencyResponse response = new ConvertCurrencyResponse(BigDecimal.TEN);
+    void testCreateCurrency_CurrencyException() throws Exception {
+        CurrencyRequest request = CurrencyRequest.builder()
+                .name("USD")
+                .description("US Dollar")
+                .exchanges(null)
+                .build();
 
-        when(currencyService.convert(Mockito.any(ConvertCurrencyRequest.class))).thenReturn(response);
+        when(currencyService.create(any(CurrencyRequest.class))).thenThrow(new CurrencyException("Coin already exists"));
 
-        mockMvc.perform(get("/convert")
+        mockMvc.perform(post("/currency")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .param("from", "USD")
-                        .param("to", "EUR")
-                        .param("amount", "100"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.amount", is(10)))
-                .andReturn();
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest());
     }
 
-    /**
-     * Tests the deletion process to ensure the endpoint responds with 200 OK and the service method is called as expected.
-     */
+    @Test
+    void testUpdateCurrency() throws Exception {
+        Long id = 1L;
+        CurrencyRequest request = CurrencyRequest.builder()
+                .name("USD")
+                .description("US Dollar")
+                .exchanges(null)
+                .build();
+
+        doNothing().when(currencyService).update(id, request);
+
+        mockMvc.perform(put("/currency/{id}", id)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk());
+    }
 
     @Test
-    void testDeleteCurrenciesSuccess() throws Exception {
-        Mockito.doNothing().when(currencyService).delete(Mockito.anyLong());
+    void testUpdateCurrency_CurrencyException() throws Exception {
+        Long id = 1L;
+        CurrencyRequest request = CurrencyRequest.builder()
+                .name("USD")
+                .description("US Dollar")
+                .exchanges(null)
+                .build();
 
-        mockMvc.perform(delete("/{id}", Mockito.anyLong()))
-                .andExpect(status().isOk())
-                .andReturn();
+        doThrow(new CurrencyException("Coin already exists")).when(currencyService).update(id, request);
 
-        Mockito.verify(currencyService, Mockito.times(1)).delete(Mockito.anyLong());
+        mockMvc.perform(put("/currency/{id}", id)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void testDeleteCurrency() throws Exception {
+        Long id = 1L;
+
+        doNothing().when(currencyService).delete(id);
+
+        mockMvc.perform(delete("/currency/{id}", id))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void testDeleteCurrency_CoinNotFoundException() throws Exception {
+        Long id = 1L;
+
+        doThrow(new CoinNotFoundException("Coin not found: " + id)).when(currencyService).delete(id);
+
+        mockMvc.perform(delete("/currency/{id}", id))
+                .andExpect(status().isNotFound());
     }
 }

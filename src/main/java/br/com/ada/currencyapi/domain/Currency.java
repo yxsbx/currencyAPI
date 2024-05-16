@@ -37,5 +37,4 @@ public class Currency implements Serializable {
             joinColumns = {@JoinColumn(name = "currency_id", referencedColumnName = "id")})
     @MapKeyColumn(name = "currency_name")
     private Map<String, BigDecimal> exchanges;
-
 }
