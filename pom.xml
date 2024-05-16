@@ -57,7 +57,12 @@
             <artifactId>spring-cloud-starter-openfeign</artifactId>
             <version>4.1.1</version>
         </dependency>
-
+        <dependency>
+            <groupId>org.assertj</groupId>
+            <artifactId>assertj-core</artifactId>
+            <version>3.24.2</version>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
     <build>
         <plugins>
@@ -85,7 +90,14 @@
                     </execution>
                     <execution>
                         <id>report</id>
-                        <phase>prepare-package</phase>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>report</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>post-unit-test</id>
+                        <phase>test</phase>
                         <goals>
                             <goal>report</goal>
                         </goals>
@@ -94,7 +106,7 @@
                 <configuration>
                     <rules>
                         <rule>
-                            <element>PACKAGE</element>
+                            <element>BUNDLE</element>
                             <limits>
                                 <limit>
                                     <counter>LINE</counter>

@@ -1,40 +1,20 @@
 package br.com.ada.currencyapi.domain;
 
-import java.io.Serializable;
-import java.math.BigDecimal;
-import java.util.Map;
-
-import jakarta.persistence.CollectionTable;
-import jakarta.persistence.ElementCollection;
+import lombok.Builder;
+import lombok.Data;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.MapKeyColumn;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
 
-@Getter
-@Setter
+
+@Data
 @Builder
-@AllArgsConstructor
-@NoArgsConstructor
 @Entity
-public class Currency implements Serializable {
-
+public class Currency {
     @Id
-    @GeneratedValue(strategy = GenerationType.AUTO)
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-    private String name;
-    private String description;
-
-    @ElementCollection
-    @CollectionTable(name = "exchanges",
-            joinColumns = {@JoinColumn(name = "currency_id", referencedColumnName = "id")})
-    @MapKeyColumn(name = "currency_name")
-    private Map<String, BigDecimal> exchanges;
+    private String name; // Nome da moeda (e.g., "Dólar Americano")
+    private String code; // Sigla da moeda (e.g., "USD")
 }

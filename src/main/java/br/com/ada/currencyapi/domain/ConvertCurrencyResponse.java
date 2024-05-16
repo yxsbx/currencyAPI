@@ -1,20 +1,12 @@
 package br.com.ada.currencyapi.domain;
 
-import lombok.AllArgsConstructor;
 import lombok.Builder;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import lombok.Data;
 
-import java.io.Serializable;
 import java.math.BigDecimal;
 
-@Getter
-@Setter
+@Data
 @Builder
-@NoArgsConstructor
-@AllArgsConstructor
-public class ConvertCurrencyResponse implements Serializable {
-
-    BigDecimal amount;
+public class ConvertCurrencyResponse {
+    private BigDecimal amount;
 }

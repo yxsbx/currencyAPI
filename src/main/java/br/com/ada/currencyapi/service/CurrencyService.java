@@ -35,68 +35,53 @@ public class CurrencyService {
         List<Currency> currencies = currencyRepository.findAll();
         List<CurrencyResponse> dtos = new ArrayList<>();
 
-        currencies.forEach((currency) -> dtos.add(CurrencyResponse.builder()
-                .label("%s - %s".formatted(currency.getId(), currency.getName()))
+        currencies.forEach(currency -> dtos.add(CurrencyResponse.builder()
+                .label(String.format("%s - %s", currency.getCode(), currency.getName()))
                 .build()));
 
         return dtos;
     }
 
     public Long create(CurrencyRequest request) throws CurrencyException {
-        validateGetStoredCurrencies(request);
+        validateCurrencyRequest(request);
         Currency currency = currencyRepository.findByName(request.getName());
 
-        if (Objects.nonNull(currency)) {
+        if (currency != null) {
             throw new CurrencyException(COIN_ALREADY_EXISTS);
         }
 
         Currency saved = currencyRepository.save(Currency.builder()
                 .name(request.getName())
-                .description(request.getDescription())
-                .exchanges(request.getExchanges())
+                .code(request.getCode())
                 .build());
         return saved.getId();
     }
 
     public void update(Long id, CurrencyRequest request) throws CurrencyException {
         validateCurrencyId(id);
-        validateGetStoredCurrencies(request);
+        validateCurrencyRequest(request);
 
         Currency currency = currencyRepository.findById(id).orElseThrow(
                 () -> new CoinNotFoundException(String.format(COIN_NOT_FOUND, id))
         );
 
-        if (!currency.getName().equals(request.getName())) {
-            Currency existingCurrency = currencyRepository.findByName(request.getName());
-            if (existingCurrency != null && !existingCurrency.getId().equals(id)) {
-                throw new CurrencyException(COIN_ALREADY_EXISTS);
-            }
+        Currency existingCurrency = currencyRepository.findByName(request.getName());
+        if (existingCurrency != null && !existingCurrency.getId().equals(id)) {
+            throw new CurrencyException(COIN_ALREADY_EXISTS);
         }
+
         currency.setName(request.getName());
-        currency.setDescription(request.getDescription());
-        currency.setExchanges(request.getExchanges());
+        currency.setCode(request.getCode());
 
         currencyRepository.save(currency);
     }
 
-    private void validateGetStoredCurrencies(CurrencyRequest request) throws IllegalArgumentException {
-        if (Objects.isNull(request) || StringUtils.isEmpty(request.getName())) {
-            throw new CurrencyException(INVALID_CURRENCY_REQUEST);
-        }
-    }
-
-    private void validateCurrencyId(Long id) throws IllegalArgumentException {
-        if (Objects.isNull(id) || id <= 0) {
-            throw new CurrencyException(INVALID_CURRENCY_ID);
-        }
-    }
-
     public void delete(Long id) {
         validateCurrencyId(id);
-        Currency from = currencyRepository.findById(id).orElseThrow(
+        Currency currency = currencyRepository.findById(id).orElseThrow(
                 () -> new CoinNotFoundException(String.format(COIN_NOT_FOUND, id))
         );
-        currencyRepository.deleteById(from.getId());
+        currencyRepository.deleteById(currency.getId());
     }
 
     public ConvertCurrencyResponse convert(ConvertCurrencyRequest request) throws CoinNotFoundException {
@@ -109,18 +94,30 @@ public class CurrencyService {
     private BigDecimal getAmountWithAwesomeApi(ConvertCurrencyRequest request) throws CoinNotFoundException {
         validateConvertRequest(request);
         String code = request.getFrom() + "-" + request.getTo();
-        Map<String, CurrencyAPIResponse> response = awesomeApiClient.getLastCurrency(Collections.singletonList(code));
+        Map<String, CurrencyAPIResponse> response = awesomeApiClient.getLastCurrency(code);
         CurrencyAPIResponse currencyApiResponse = response.get(code);
 
-        if (Objects.isNull(currencyApiResponse) || Objects.isNull(currencyApiResponse.getLow())) {
+        if (currencyApiResponse == null || currencyApiResponse.getLow() == null) {
             throw new CoinNotFoundException(String.format(EXCHANGE_RATE_NOT_FOUND, request.getTo(), request.getFrom()));
         }
 
         return request.getAmount().multiply(currencyApiResponse.getLow());
     }
 
-    private void validateConvertRequest(ConvertCurrencyRequest request) throws IllegalArgumentException {
-        if (Objects.isNull(request) || StringUtils.isEmpty(request.getFrom()) || StringUtils.isEmpty(request.getTo()) || Objects.isNull(request.getAmount())) {
+    private void validateCurrencyRequest(CurrencyRequest request) throws CurrencyException {
+        if (request == null || !StringUtils.hasLength(request.getName()) || !StringUtils.hasLength(request.getCode())) {
+            throw new CurrencyException(INVALID_CURRENCY_REQUEST);
+        }
+    }
+
+    private void validateCurrencyId(Long id) throws CurrencyException {
+        if (id == null || id <= 0) {
+            throw new CurrencyException(INVALID_CURRENCY_ID);
+        }
+    }
+
+    private void validateConvertRequest(ConvertCurrencyRequest request) throws CurrencyException {
+        if (request == null || !StringUtils.hasLength(request.getFrom()) || !StringUtils.hasLength(request.getTo()) || request.getAmount() == null) {
             throw new CurrencyException(INVALID_CONVERT_REQUEST);
         }
     }

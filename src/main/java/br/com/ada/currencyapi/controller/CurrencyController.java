@@ -1,6 +1,5 @@
 package br.com.ada.currencyapi.controller;
 
-
 import br.com.ada.currencyapi.domain.*;
 import br.com.ada.currencyapi.exception.CoinNotFoundException;
 import br.com.ada.currencyapi.exception.CurrencyException;
@@ -24,7 +23,7 @@ public class CurrencyController {
         return new ResponseEntity<>(currencyService.get(), HttpStatus.OK);
     }
 
-    @GetMapping("/convert")
+    @PostMapping("/convert")
     public ResponseEntity<ConvertCurrencyResponse> convert(@RequestBody ConvertCurrencyRequest request) throws CoinNotFoundException {
         return new ResponseEntity<>(currencyService.convert(request), HttpStatus.OK);
     }
