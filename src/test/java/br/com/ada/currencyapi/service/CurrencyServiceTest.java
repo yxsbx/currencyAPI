@@ -23,6 +23,34 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
+/**
+ * assertThatThrownBy(): Verifica se uma exceção específica é capturada durante a execução de um bloco de código.
+ * hasMessage: Verifica uma correspondência exata da mensagem de erro.
+ * hasMessageContaining: Verifica se a mensagem de erro contém uma substring específica.
+ * isEqualTo: Verifica se o valor de um objeto é igual ao valor esperado.
+ * isInstanceOf: Verifica se o tipo de um objeto é o tipo esperado.
+ * isInstanceOfAny: Verifica se o tipo de um objeto é um dos tipos esperados.
+ * isNull: Verifica se um objeto é nulo.
+ * isSameAs: Verifica se um objeto é o mesmo objeto (comparação de identidade) que o objeto esperado.
+ * isNotSameAs: Verifica se um objeto não é o mesmo objeto (comparação de identidade) que o objeto esperado.
+ * hasProperty: Verifica se um objeto contém uma propriedade específica.
+ * hasFieldOrProperty: Verifica se um objeto contém um campo ou propriedade específica.
+ * hasFieldOrPropertyWithValue: Verifica se um objeto contém um campo ou propriedade com um valor específico.
+ * hasCause(): Verifica se o tipo da exceção contém a causa especificada.
+ * hasRootCause(): Verifica se o tipo da exceção contém a causa raiz especificada.
+ * assertThat(exception).hasRootCause(rootCause);
+
+ * Comentários de diferenciação:
+ * hasMessage: Verifica a mensagem exata da exceção.
+ * hasMessageContaining: Verifica se a mensagem contém uma substring específica.
+ * isSameAs: Verifica se dois objetos são exatamente o mesmo objeto (identidade).
+ * isNotSameAs: Verifica se dois objetos não são o mesmo objeto (identidade).
+ * hasProperty: Verifica se um objeto tem uma propriedade específica (getter).
+ * hasFieldOrProperty: Verifica se um objeto tem um campo ou propriedade específica (campo ou getter).
+ * hasCause: Verifica a causa imediata da exceção.
+ * hasRootCause: Verifica a causa raiz da exceção.
+ */
+
 class CurrencyServiceTest {
 
     @Mock
@@ -38,6 +66,14 @@ class CurrencyServiceTest {
     void setUp() {
         MockitoAnnotations.openMocks(this);
     }
+
+    /**
+     * Arrange: Cria um objeto Currency com o ID 1, nome "Dólar Americano" e código "USD".
+     * Mock: Configura o mock currencyRepository para retornar uma lista contendo essa moeda quando o método findAll() for chamado.
+     * Act: Chama o método get do currencyService.
+     * Assert: Verifica se a resposta contém exatamente um elemento e se o rótulo desse elemento é "USD - Dólar Americano".
+     * Verifica também se o método findAll() do repositório foi chamado uma vez.
+     */
 
     @Test
     void testGet() {
@@ -56,6 +92,13 @@ class CurrencyServiceTest {
         verify(currencyRepository, times(1)).findAll();
     }
 
+    /**
+     * Arrange: Cria um objeto CurrencyRequest com o nome "Dólar Americano" e o código "USD".
+     * Mock: Configura o mock currencyRepository para retornar null ao buscar por nome e para retornar uma moeda com ID 1 ao salvar a moeda.
+     * Act: Chama o método create do currencyService com o request.
+     * Assert: Verifica se o ID retornado é 1 e se os métodos findByName e save do repositório foram chamados uma vez cada.
+     */
+
     @Test
     void testCreate() throws CurrencyException {
         CurrencyRequest request = new CurrencyRequest();
@@ -72,6 +115,13 @@ class CurrencyServiceTest {
         verify(currencyRepository, times(1)).save(any(Currency.class));
     }
 
+    /**
+     * Arrange: Cria um objeto CurrencyRequest com o nome "Dólar Americano" e o código "USD".
+     * Mock: Configura o mock currencyRepository para retornar uma moeda ao buscar por nome.
+     * Act & Assert: Verifica se o método create lança uma CurrencyException com a mensagem "Coin already exists".
+     * Verifica também se o método findByName foi chamado uma vez e o método save não foi chamado.
+     */
+
     @Test
     void testCreateThrowsCurrencyException() {
         CurrencyRequest request = new CurrencyRequest();
@@ -87,6 +137,15 @@ class CurrencyServiceTest {
         verify(currencyRepository, times(1)).findByName(anyString());
         verify(currencyRepository, times(0)).save(any(Currency.class));
     }
+
+    /**
+     * Arrange: Cria um objeto CurrencyRequest e uma moeda existente Currency.
+     * Mock: Configura o mock currencyRepository para retornar a moeda existente ao buscar por ID e null ao buscar por nome.
+     * Configura para retornar a moeda existente ao salvar.
+     * Act: Chama o método update do currencyService com ID 1 e o request.
+     * Assert: Verifica se os campos da moeda existente foram atualizados.
+     * Verifica também se os métodos findById, findByName e save foram chamados uma vez cada.
+     */
 
     @Test
     void testUpdate() throws CurrencyException {
@@ -113,6 +172,13 @@ class CurrencyServiceTest {
         verify(currencyRepository, times(1)).save(any(Currency.class));
     }
 
+    /**
+     * Arrange: Cria um objeto CurrencyRequest com o nome "Dólar Americano" e o código "USD".
+     * Mock: Configura o mock currencyRepository para retornar Optional.empty() ao buscar por ID.
+     * Act & Assert: Verifica se o método update lança uma CoinNotFoundException com a mensagem "Coin not found".
+     * Verifica também se o método findById foi chamado uma vez e os métodos findByName e save não foram chamados.
+     */
+
     @Test
     void testUpdateThrowsCoinNotFoundException() {
         CurrencyRequest request = new CurrencyRequest();
@@ -129,6 +195,13 @@ class CurrencyServiceTest {
         verify(currencyRepository, times(0)).findByName(anyString());
         verify(currencyRepository, times(0)).save(any(Currency.class));
     }
+
+    /**
+     * Arrange: Cria um objeto CurrencyRequest e uma moeda existente Currency com o mesmo nome mas ID diferente.
+     * Mock: Configura o mock currencyRepository para retornar a moeda existente ao buscar por nome.
+     * Act & Assert: Verifica se o método update lança uma CurrencyException com a mensagem "Coin already exists".
+     * Verifica também se os métodos findById e findByName foram chamados uma vez e o método save não foi chamado.
+     */
 
     @Test
     void testUpdateThrowsCurrencyExceptionWhenExistingCurrencyNameIsDuplicate() {
@@ -160,6 +233,13 @@ class CurrencyServiceTest {
         verify(currencyRepository, times(0)).save(any(Currency.class));
     }
 
+    /**
+     * Arrange: Cria uma moeda existente Currency.
+     * Mock: Configura o mock currencyRepository para retornar a moeda existente ao buscar por ID e não fazer nada ao deletar.
+     * Act: Chama o método delete do currencyService com ID 1.
+     * Assert: Verifica se os métodos findById e deleteById foram chamados uma vez cada.
+     */
+
     @Test
     void testDelete() {
         Currency existingCurrency = Currency.builder()
@@ -177,6 +257,12 @@ class CurrencyServiceTest {
         verify(currencyRepository, times(1)).deleteById(anyLong());
     }
 
+    /**
+     * Arrange: Configura o mock currencyRepository para retornar Optional.empty() ao buscar por ID.
+     * Act & Assert: Verifica se o método delete lança uma CoinNotFoundException com a mensagem "Coin not found".
+     * Verifica também se o método findById foi chamado uma vez e o método deleteById não foi chamado.
+     */
+
     @Test
     void testDeleteThrowsCoinNotFoundException() {
         when(currencyRepository.findById(anyLong())).thenReturn(Optional.empty());
@@ -188,6 +274,13 @@ class CurrencyServiceTest {
         verify(currencyRepository, times(1)).findById(anyLong());
         verify(currencyRepository, times(0)).deleteById(anyLong());
     }
+
+    /**
+     * Arrange: Cria um objeto ConvertCurrencyRequest com os detalhes da conversão.
+     * Mock: Configura o mock awesomeApiClient para retornar uma resposta com o valor da taxa de conversão.
+     * Act: Chama o método convert do currencyService com o request.
+     * Assert: Verifica se o valor convertido é igual a 500. Verifica também se o método getLastCurrency foi chamado uma vez.
+     */
 
     @Test
     void testConvert() throws CoinNotFoundException {
@@ -207,6 +300,13 @@ class CurrencyServiceTest {
         verify(awesomeApiClient, times(1)).getLastCurrency(anyString());
     }
 
+    /**
+     * Arrange: Cria um objeto ConvertCurrencyRequest com os detalhes da conversão.
+     * Mock: Configura o mock awesomeApiClient para retornar um mapa vazio ao buscar pela taxa de conversão.
+     * Act & Assert: Verifica se o método convert lança uma CoinNotFoundException com a mensagem "Exchange rate not found".
+     * Verifica também se o método getLastCurrency foi chamado uma vez.
+     */
+
     @Test
     void testConvertThrowsCoinNotFoundException() {
         ConvertCurrencyRequest request = new ConvertCurrencyRequest();
@@ -223,6 +323,11 @@ class CurrencyServiceTest {
         verify(awesomeApiClient, times(1)).getLastCurrency(anyString());
     }
 
+    /**
+     * Arrange: Cria um objeto CurrencyRequest vazio.
+     * Act & Assert: Verifica se o método create lança uma CurrencyException com a mensagem "Invalid CurrencyRequest".
+     */
+
     @Test
     void testValidateCurrencyRequestThrowsCurrencyException() {
         CurrencyRequest request = new CurrencyRequest();
@@ -230,6 +335,10 @@ class CurrencyServiceTest {
         assertThatThrownBy(() -> currencyService.create(request)).isInstanceOf(CurrencyException.class)
                 .hasMessage("Invalid CurrencyRequest");
     }
+
+    /**
+     * Act & Assert: Verifica se o método delete lança uma CurrencyException com a mensagem "Invalid Currency ID" quando o ID é null ou 0.
+     */
 
     @Test
     void testValidateCurrencyIdThrowsCurrencyException() {
@@ -242,6 +351,11 @@ class CurrencyServiceTest {
                 .hasMessage("Invalid Currency ID");
     }
 
+    /**
+     * Arrange: Cria um objeto ConvertCurrencyRequest vazio.
+     * Act & Assert: Verifica se o método convert lança uma CurrencyException com a mensagem "Invalid ConvertCurrencyRequest".
+     */
+
     @Test
     void testValidateConvertRequestThrowsCurrencyException() {
         ConvertCurrencyRequest request = new ConvertCurrencyRequest();
@@ -251,6 +365,11 @@ class CurrencyServiceTest {
                 .hasMessage("Invalid ConvertCurrencyRequest");
     }
 
+    /**
+     * Arrange: Cria um objeto CurrencyRequest nulo.
+     * Act & Assert: Verifica se o método create lança uma CurrencyException com a mensagem "Invalid CurrencyRequest".
+     */
+
     @Test
     void testValidateCurrencyRequestThrowsCurrencyExceptionWhenRequestIsNull() {
         CurrencyRequest request = null;
@@ -258,6 +377,11 @@ class CurrencyServiceTest {
         assertThatThrownBy(() -> currencyService.create(request)).isInstanceOf(CurrencyException.class)
                 .hasMessage("Invalid CurrencyRequest");
     }
+
+    /**
+     * Arrange: Cria um objeto CurrencyRequest com o nome vazio e código "USD".
+     * Act & Assert: Verifica se o método create lança uma CurrencyException com a mensagem "Invalid CurrencyRequest".
+     */
 
     @Test
     void testValidateCurrencyRequestThrowsCurrencyExceptionWhenNameIsEmpty() {
@@ -269,6 +393,11 @@ class CurrencyServiceTest {
                 .hasMessage("Invalid CurrencyRequest");
     }
 
+    /**
+     * Arrange: Cria um objeto CurrencyRequest com o nome "Dólar Americano" e código vazio.
+     * Act & Assert: Verifica se o método create lança uma CurrencyException com a mensagem "Invalid CurrencyRequest".
+     */
+
     @Test
     void testValidateCurrencyRequestThrowsCurrencyExceptionWhenCodeIsEmpty() {
         CurrencyRequest request = new CurrencyRequest();
@@ -279,11 +408,19 @@ class CurrencyServiceTest {
                 .hasMessage("Invalid CurrencyRequest");
     }
 
+    /**
+     * Act & Assert: Verifica se o método delete lança uma CurrencyException com a mensagem "Invalid Currency ID" quando o ID é null.
+     */
+
     @Test
     void testValidateCurrencyIdThrowsCurrencyExceptionWhenIdIsNull() {
         assertThatThrownBy(() -> currencyService.delete(null)).isInstanceOf(CurrencyException.class)
                 .hasMessage("Invalid Currency ID");
     }
+
+    /**
+     * Act & Assert: Verifica se o método delete lança uma CurrencyException com a mensagem "Invalid Currency ID" quando o ID é 0 ou negativo.
+     */
 
     @Test
     void testValidateCurrencyIdThrowsCurrencyExceptionWhenIdIsLessThanOrEqualToZero() {
@@ -294,13 +431,22 @@ class CurrencyServiceTest {
                 .hasMessage("Invalid Currency ID");
     }
 
+    /**
+     * Arrange: Cria um objeto ConvertCurrencyRequest nulo.
+     * Act & Assert: Verifica se o método convert lança uma CurrencyException com a mensagem "Invalid ConvertCurrencyRequest".
+     */
+
     @Test
     void testValidateConvertRequestThrowsCurrencyExceptionWhenRequestIsNull() {
         ConvertCurrencyRequest request = null;
-
         assertThatThrownBy(() -> currencyService.convert(request)).isInstanceOf(CurrencyException.class)
                 .hasMessage("Invalid ConvertCurrencyRequest");
     }
+
+    /**
+     * Arrange: Cria um objeto ConvertCurrencyRequest com o campo from vazio e os outros campos preenchidos.
+     * Act & Assert: Verifica se o método convert lança uma CurrencyException com a mensagem "Invalid ConvertCurrencyRequest".
+     */
 
     @Test
     void testValidateConvertRequestThrowsCurrencyExceptionWhenFromIsEmpty() {
@@ -313,6 +459,11 @@ class CurrencyServiceTest {
                 .hasMessage("Invalid ConvertCurrencyRequest");
     }
 
+    /**
+     * Arrange: Cria um objeto ConvertCurrencyRequest com o campo to vazio e os outros campos preenchidos.
+     * Act & Assert: Verifica se o método convert lança uma CurrencyException com a mensagem "Invalid ConvertCurrencyRequest".
+     */
+
     @Test
     void testValidateConvertRequestThrowsCurrencyExceptionWhenToIsEmpty() {
         ConvertCurrencyRequest request = new ConvertCurrencyRequest();
@@ -324,6 +475,11 @@ class CurrencyServiceTest {
                 .hasMessage("Invalid ConvertCurrencyRequest");
     }
 
+    /**
+     * Arrange: Cria um objeto ConvertCurrencyRequest com o campo amount nulo e os outros campos preenchidos.
+     * Act & Assert: Verifica se o método convert lança uma CurrencyException com a mensagem "Invalid ConvertCurrencyRequest".
+     */
+
     @Test
     void testValidateConvertRequestThrowsCurrencyExceptionWhenAmountIsNull() {
         ConvertCurrencyRequest request = new ConvertCurrencyRequest();
@@ -334,6 +490,13 @@ class CurrencyServiceTest {
         assertThatThrownBy(() -> currencyService.convert(request)).isInstanceOf(CurrencyException.class)
                 .hasMessage("Invalid ConvertCurrencyRequest");
     }
+
+    /**
+     * Arrange: Cria um objeto ConvertCurrencyRequest com os detalhes da conversão.
+     * Mock: Configura o mock awesomeApiClient para retornar um mapa vazio ao buscar pela taxa de conversão.
+     * Act & Assert: Verifica se o método convert lança uma CoinNotFoundException com a mensagem "Exchange rate not found".
+     * Verifica também se o método getLastCurrency foi chamado uma vez.
+     */
 
     @Test
     void testGetAmountWithAwesomeApiThrowsCoinNotFoundExceptionWhenResponseIsNull() {
@@ -351,6 +514,13 @@ class CurrencyServiceTest {
 
         verify(awesomeApiClient, times(1)).getLastCurrency(anyString());
     }
+
+    /**
+     * Arrange: Cria um objeto ConvertCurrencyRequest com os detalhes da conversão.
+     * Mock: Configura o mock awesomeApiClient para retornar uma resposta com o valor low nulo ao buscar pela taxa de conversão.
+     * Act & Assert: Verifica se o método convert lança uma CoinNotFoundException com a mensagem "Exchange rate not found".
+     * Verifica também se o método getLastCurrency foi chamado uma vez.
+     */
 
     @Test
     void testGetAmountWithAwesomeApiThrowsCoinNotFoundExceptionWhenLowIsNull() {

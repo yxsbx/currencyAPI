@@ -47,6 +47,13 @@ public class CurrencyControllerIntegrationTest {
         currencyRepository.deleteAll();
     }
 
+    /**
+     * Arrange: Cria um objeto CurrencyResponse com o rótulo "USD - Dólar Americano" e o coloca em uma lista.
+     * Mock: Configura o mock currencyService para retornar essa lista quando o método get() for chamado.
+     * Act: Faz uma requisição GET para o endpoint /currency usando o MockMvc.
+     * Assert: Verifica se a resposta tem o status HTTP 200 (OK) e se o JSON retornado contém um objeto com o rótulo "USD - Dólar Americano".
+     */
+
     @Test
     void testGet() throws Exception {
         CurrencyResponse response1 = CurrencyResponse.builder().label("USD - Dólar Americano").build();
@@ -58,6 +65,13 @@ public class CurrencyControllerIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].label", is("USD - Dólar Americano")));
     }
+
+    /**
+     * Arrange: Cria um objeto ConvertCurrencyResponse com o valor de 500.
+     * Mock: Configura o mock currencyService para retornar esse objeto quando o método convert for chamado com qualquer ConvertCurrencyRequest.
+     * Act: Faz uma requisição POST para o endpoint /currency/convert com um corpo JSON contendo os detalhes da conversão.
+     * Assert: Verifica se a resposta tem o status HTTP 200 (OK) e se o JSON retornado contém o valor amount igual a 500.
+     */
 
     @Test
     void testConvert() throws Exception {
@@ -72,6 +86,12 @@ public class CurrencyControllerIntegrationTest {
                 .andExpect(jsonPath("$.amount", is(500)));
     }
 
+    /**
+     * Arrange: Configura o mock currencyService para retornar 1L quando o método create for chamado com qualquer CurrencyRequest.
+     * Act: Faz uma requisição POST para o endpoint /currency com um corpo JSON contendo o nome e o código da moeda.
+     * Assert: Verifica se a resposta tem o status HTTP 201 (Created) e se o corpo da resposta é a string "1".
+     */
+
     @Test
     void testCreate() throws Exception {
         Mockito.when(currencyService.create(any(CurrencyRequest.class))).thenReturn(1L);
@@ -83,6 +103,13 @@ public class CurrencyControllerIntegrationTest {
                 .andExpect(content().string("1"));
     }
 
+    /**
+     * Arrange: Cria um objeto ConvertCurrencyResponse com o valor de 500.
+     * Mock: Configura o mock currencyService para retornar esse objeto quando o método convert for chamado com qualquer ConvertCurrencyRequest.
+     * Act: Faz uma requisição POST para o endpoint /currency/convert com um corpo JSON contendo os detalhes da conversão.
+     * Assert: Verifica se a resposta tem o status HTTP 200 (OK) e se o JSON retornado contém o valor amount igual a 500.
+     */
+
     @Test
     void testUpdate() throws Exception {
         Mockito.doNothing().when(currencyService).update(anyLong(), any(CurrencyRequest.class));
@@ -92,6 +119,12 @@ public class CurrencyControllerIntegrationTest {
                         .content("{\"name\": \"Dólar Americano\", \"code\": \"USD\"}"))
                 .andExpect(status().isOk());
     }
+
+    /**
+     * Arrange: Configura o mock currencyService para não fazer nada quando o método update for chamado com qualquer Long e CurrencyRequest.
+     * Act: Faz uma requisição PUT para o endpoint /currency/1 com um corpo JSON contendo o nome e o código da moeda.
+     * Assert: Verifica se a resposta tem o status HTTP 200 (OK).
+     */
 
     @Test
     void testDelete() throws Exception {
