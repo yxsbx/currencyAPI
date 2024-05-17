@@ -66,7 +66,7 @@ public class CurrencyService {
         );
 
         Currency existingCurrency = currencyRepository.findByName(request.getName());
-        if (existingCurrency != null && !existingCurrency.getId().equals(id)) {
+        if (existingCurrency != null) {
             throw new CurrencyException(COIN_ALREADY_EXISTS);
         }
 

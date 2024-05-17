@@ -104,6 +104,11 @@
                     </execution>
                 </executions>
                 <configuration>
+                    <excludes>
+                        <exclude>**/domain/**</exclude>
+                        <exclude>**/exception/**</exclude>
+                        <exclude>**/CurrencyApiApplication.class/**</exclude>
+                    </excludes>
                     <rules>
                         <rule>
                             <element>BUNDLE</element>

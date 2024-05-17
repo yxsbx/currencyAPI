@@ -73,29 +73,17 @@ class CurrencyServiceTest {
     }
 
     @Test
-    void testUpdateThrowsCurrencyException() {
+    void testCreateThrowsCurrencyException() {
         CurrencyRequest request = new CurrencyRequest();
         request.setName("Dólar Americano");
         request.setCode("USD");
 
-        Currency existingCurrency = Currency.builder()
-                .id(2L)
-                .name("Dólar Americano")
-                .code("USD")
-                .build();
+        when(currencyRepository.findByName(anyString())).thenReturn(Currency.builder().build());
 
-        when(currencyRepository.findById(anyLong())).thenReturn(Optional.of(Currency.builder()
-                .id(1L)
-                .name("Euro")
-                .code("EUR")
-                .build()));
-        when(currencyRepository.findByName(anyString())).thenReturn(existingCurrency);
-
-        assertThatThrownBy(() -> currencyService.update(1L, request))
+        assertThatThrownBy(() -> currencyService.create(request))
                 .isInstanceOf(CurrencyException.class)
                 .hasMessage("Coin already exists");
 
-        verify(currencyRepository, times(1)).findById(anyLong());
         verify(currencyRepository, times(1)).findByName(anyString());
         verify(currencyRepository, times(0)).save(any(Currency.class));
     }
@@ -139,6 +127,36 @@ class CurrencyServiceTest {
 
         verify(currencyRepository, times(1)).findById(anyLong());
         verify(currencyRepository, times(0)).findByName(anyString());
+        verify(currencyRepository, times(0)).save(any(Currency.class));
+    }
+
+    @Test
+    void testUpdateThrowsCurrencyExceptionWhenExistingCurrencyNameIsDuplicate() {
+        CurrencyRequest request = new CurrencyRequest();
+        request.setName("Dólar Americano");
+        request.setCode("USD");
+
+        Currency existingCurrencyWithSameName = Currency.builder()
+                .id(2L)
+                .name("Dólar Americano")
+                .code("USD")
+                .build();
+
+        Currency currencyToBeUpdated = Currency.builder()
+                .id(1L)
+                .name("Euro")
+                .code("EUR")
+                .build();
+
+        when(currencyRepository.findById(1L)).thenReturn(Optional.of(currencyToBeUpdated));
+        when(currencyRepository.findByName("Dólar Americano")).thenReturn(existingCurrencyWithSameName);
+
+        assertThatThrownBy(() -> currencyService.update(1L, request))
+                .isInstanceOf(CurrencyException.class)
+                .hasMessage("Coin already exists");
+
+        verify(currencyRepository, times(1)).findById(1L);
+        verify(currencyRepository, times(1)).findByName("Dólar Americano");
         verify(currencyRepository, times(0)).save(any(Currency.class));
     }
 
@@ -352,35 +370,5 @@ class CurrencyServiceTest {
                 .hasMessageContaining("Exchange rate not found");
 
         verify(awesomeApiClient, times(1)).getLastCurrency(anyString());
-    }
-
-    @Test
-    void testUpdateThrowsCurrencyExceptionWhenExistingCurrencyIdIsDifferent() {
-        CurrencyRequest request = new CurrencyRequest();
-        request.setName("Dólar Americano");
-        request.setCode("USD");
-
-        Currency existingCurrencyWithSameName = Currency.builder()
-                .id(2L)
-                .name("Dólar Americano")
-                .code("USD")
-                .build();
-
-        Currency currencyToBeUpdated = Currency.builder()
-                .id(1L)
-                .name("Euro")
-                .code("EUR")
-                .build();
-
-        when(currencyRepository.findById(anyLong())).thenReturn(Optional.of(currencyToBeUpdated));
-        when(currencyRepository.findByName(anyString())).thenReturn(existingCurrencyWithSameName);
-
-        assertThatThrownBy(() -> currencyService.update(1L, request))
-                .isInstanceOf(CurrencyException.class)
-                .hasMessage("Coin already exists");
-
-        verify(currencyRepository, times(1)).findById(anyLong());
-        verify(currencyRepository, times(1)).findByName(anyString());
-        verify(currencyRepository, times(0)).save(any(Currency.class));
     }
 }
