@@ -2,6 +2,7 @@ package br.com.ada.currencyapi.service;
 
 import java.math.BigDecimal;
 import java.util.*;
+import java.util.stream.Collectors;
 
 import br.com.ada.currencyapi.domain.Currency;
 import br.com.ada.currencyapi.repository.feign.AwesomeAPIClient;
@@ -13,6 +14,7 @@ import br.com.ada.currencyapi.domain.ConvertCurrencyResponse;
 import br.com.ada.currencyapi.exception.CoinNotFoundException;
 import br.com.ada.currencyapi.exception.CurrencyException;
 import br.com.ada.currencyapi.repository.CurrencyRepository;
+import feign.FeignException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -94,12 +96,16 @@ public class CurrencyService {
     private BigDecimal getAmountWithAwesomeApi(ConvertCurrencyRequest request) throws CoinNotFoundException {
         validateConvertRequest(request);
         String code = request.getFrom() + "-" + request.getTo();
-        Map<String, CurrencyAPIResponse> response = awesomeApiClient.getLastCurrency(code);
-        CurrencyAPIResponse currencyApiResponse = response.get(code);
 
-        if (currencyApiResponse == null || currencyApiResponse.getLow() == null) {
+        Map<String, CurrencyAPIResponse> response;
+        try {
+            response = awesomeApiClient.getLastCurrency(code);
+        } catch (FeignException.NotFound e) {
             throw new CoinNotFoundException(String.format(EXCHANGE_RATE_NOT_FOUND, request.getTo(), request.getFrom()));
         }
+
+        String key = code.replace("-", "");
+        CurrencyAPIResponse currencyApiResponse = response.get(key);
 
         return request.getAmount().multiply(currencyApiResponse.getLow());
     }
@@ -120,5 +126,14 @@ public class CurrencyService {
         if (request == null || !StringUtils.hasLength(request.getFrom()) || !StringUtils.hasLength(request.getTo()) || request.getAmount() == null) {
             throw new CurrencyException(INVALID_CONVERT_REQUEST);
         }
+    }
+
+    public List<CurrencyResponse> getCurrencies() {
+        List<Currency> currencies = currencyRepository.findAll();
+        return currencies.stream()
+                .map(currency -> CurrencyResponse.builder()
+                        .label(String.format("%s - %s", currency.getCode(), currency.getName()))
+                        .build())
+                .collect(Collectors.toList());
     }
 }

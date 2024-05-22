@@ -18,6 +18,6 @@ public class Currency {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-    private String name; // Nome da moeda (e.g., "Dólar Americano")
-    private String code; // Sigla da moeda (e.g., "USD")
+    private String name;
+    private String code;
 }

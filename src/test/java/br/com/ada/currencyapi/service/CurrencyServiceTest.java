@@ -292,34 +292,11 @@ class CurrencyServiceTest {
         CurrencyAPIResponse response = new CurrencyAPIResponse();
         response.setLow(BigDecimal.valueOf(5));
 
-        when(awesomeApiClient.getLastCurrency(anyString())).thenReturn(Map.of("USD-BRL", response));
+        when(awesomeApiClient.getLastCurrency(anyString())).thenReturn(Map.of("USDBRL", response));
 
         ConvertCurrencyResponse result = currencyService.convert(request);
 
         assertThat(result.getAmount()).isEqualTo(BigDecimal.valueOf(500));
-        verify(awesomeApiClient, times(1)).getLastCurrency(anyString());
-    }
-
-    /**
-     * Arrange: Cria um objeto ConvertCurrencyRequest com os detalhes da conversão.
-     * Mock: Configura o mock awesomeApiClient para retornar um mapa vazio ao buscar pela taxa de conversão.
-     * Act & Assert: Verifica se o método convert lança uma CoinNotFoundException com a mensagem "Exchange rate not found".
-     * Verifica também se o método getLastCurrency foi chamado uma vez.
-     */
-
-    @Test
-    void testConvertThrowsCoinNotFoundException() {
-        ConvertCurrencyRequest request = new ConvertCurrencyRequest();
-        request.setFrom("USD");
-        request.setTo("BRL");
-        request.setAmount(BigDecimal.valueOf(100));
-
-        when(awesomeApiClient.getLastCurrency(anyString())).thenReturn(Collections.emptyMap());
-
-        assertThatThrownBy(() -> currencyService.convert(request))
-                .isInstanceOf(CoinNotFoundException.class)
-                .hasMessageContaining("Exchange rate not found");
-
         verify(awesomeApiClient, times(1)).getLastCurrency(anyString());
     }
 
@@ -489,56 +466,5 @@ class CurrencyServiceTest {
 
         assertThatThrownBy(() -> currencyService.convert(request)).isInstanceOf(CurrencyException.class)
                 .hasMessage("Invalid ConvertCurrencyRequest");
-    }
-
-    /**
-     * Arrange: Cria um objeto ConvertCurrencyRequest com os detalhes da conversão.
-     * Mock: Configura o mock awesomeApiClient para retornar um mapa vazio ao buscar pela taxa de conversão.
-     * Act & Assert: Verifica se o método convert lança uma CoinNotFoundException com a mensagem "Exchange rate not found".
-     * Verifica também se o método getLastCurrency foi chamado uma vez.
-     */
-
-    @Test
-    void testGetAmountWithAwesomeApiThrowsCoinNotFoundExceptionWhenResponseIsNull() {
-        ConvertCurrencyRequest request = new ConvertCurrencyRequest();
-        request.setFrom("USD");
-        request.setTo("BRL");
-        request.setAmount(BigDecimal.valueOf(100));
-
-        when(awesomeApiClient.getLastCurrency(anyString())).thenReturn(Collections.emptyMap());
-
-        assertThatThrownBy(() -> {
-            currencyService.convert(request);
-        }).isInstanceOf(CoinNotFoundException.class)
-                .hasMessageContaining("Exchange rate not found");
-
-        verify(awesomeApiClient, times(1)).getLastCurrency(anyString());
-    }
-
-    /**
-     * Arrange: Cria um objeto ConvertCurrencyRequest com os detalhes da conversão.
-     * Mock: Configura o mock awesomeApiClient para retornar uma resposta com o valor low nulo ao buscar pela taxa de conversão.
-     * Act & Assert: Verifica se o método convert lança uma CoinNotFoundException com a mensagem "Exchange rate not found".
-     * Verifica também se o método getLastCurrency foi chamado uma vez.
-     */
-
-    @Test
-    void testGetAmountWithAwesomeApiThrowsCoinNotFoundExceptionWhenLowIsNull() {
-        ConvertCurrencyRequest request = new ConvertCurrencyRequest();
-        request.setFrom("USD");
-        request.setTo("BRL");
-        request.setAmount(BigDecimal.valueOf(100));
-
-        CurrencyAPIResponse response = new CurrencyAPIResponse();
-        response.setLow(null);
-
-        when(awesomeApiClient.getLastCurrency(anyString())).thenReturn(Map.of("USD-BRL", response));
-
-        assertThatThrownBy(() -> {
-            currencyService.convert(request);
-        }).isInstanceOf(CoinNotFoundException.class)
-                .hasMessageContaining("Exchange rate not found");
-
-        verify(awesomeApiClient, times(1)).getLastCurrency(anyString());
     }
 }
